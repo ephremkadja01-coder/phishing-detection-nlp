@@ -1,7 +1,10 @@
-<<EOT > .gitignore
-data/
-saved_models/
+# Isolation stricte des environnements et caches
+.venv/
 __pycache__/
 .ipynb_checkpoints/
-.venv/
-EOT
+
+# Blocage absolu des donnees volumineuses (Geres en local uniquement)
+data/
+
+# Blocage des artefacts binaires lourds de modeles
+models/*.joblib

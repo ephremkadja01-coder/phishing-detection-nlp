@@ -2,13 +2,10 @@ import re
 from urllib.parse import urlparse
 
 def extraire_indices_url(url_brute):
-    """
-    Extrait les caracteristiques numeriques d'une URL pour le Machine Learning.
-    """
     indices = {}
     url_chaine = str(url_brute)
     
-    # 1. Caracteristiques de longueur
+    # 1. Calcul de la longueur
     indices['longueur_url'] = len(url_chaine)
     
     # 2. Comptage des caracteres suspects
@@ -18,7 +15,7 @@ def extraire_indices_url(url_brute):
     indices['nb_interrogations'] = url_chaine.count('?')
     indices['nb_egaux'] = url_chaine.count('=')
     
-    # 3. Detection d'une adresse IP dans le nom de domaine
+    # 3. Detection d'une adresse IP directe
     motif_ip = r'(?:\d{1,3}\.){3}\d{1,3}'
     try:
         analyse_url = urlparse(url_chaine)
@@ -27,25 +24,19 @@ def extraire_indices_url(url_brute):
     except Exception:
         indices['contient_ip'] = 0
         
-    # 4. Verification de la presence de HTTPS
+    # 4. Verification du protocole HTTPS
     indices['utilise_https'] = 1 if url_chaine.lower().startswith('https') else 0
     
     return indices
 
-# continuer avec cette fonction de nettoyage de texte pour les emails
-import re
-
 def nettoyer_texte_email(texte_brut):
-    """
-    Nettoie le texte d'un email (minuscules, suppression ponctuation et caracteres speciaux).
-    """
     # 1. Passage en minuscules
     texte = str(texte_brut).lower()
     
-    # 2. Suppression des caracteres speciaux et de la ponctuation (conservation des lettres et espaces)
+    # 2. Suppression de la ponctuation et des caracteres speciaux
     texte = re.sub(r'[^a-zA-Z\s]', '', texte)
     
-    # 3. Suppression des espaces multiples
+    # 3. Nettoyage des espaces en trop
     texte = re.sub(r'\s+', ' ', texte).strip()
     
     return texte
