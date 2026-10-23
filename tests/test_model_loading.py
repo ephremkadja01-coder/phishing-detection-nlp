@@ -1,7 +1,9 @@
 import os
+import sys
 import joblib
 
-dossier_modeles = "models"
+# Remontée d'un cran pour cibler le dossier models depuis le sous-dossier tests
+dossier_modeles = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models")
 
 def verifier_fichiers():
     fichiers = [
@@ -13,25 +15,27 @@ def verifier_fichiers():
     ]
     
     correct = True
-    print("Verification des fichiers sauvegardes :")
+    print("Vérification des composants d'inférence en production :")
     
     for fichier in fichiers:
         chemin = os.path.join(dossier_modeles, fichier)
         if not os.path.exists(chemin):
-            print(f"Manquant : {fichier}")
+            print(f"[MANQUANT] : {fichier}")
             correct = False
             continue
         try:
             joblib.load(chemin)
-            print(f"OK : {fichier}")
+            print(f"[VALIDE]   : {fichier}")
         except Exception as e:
-            print(f"Erreur sur {fichier} : {str(e)}")
+            print(f"[CORROMPU] : {fichier} -> {str(e)}")
             correct = False
             
     if correct:
-        print("Tous les fichiers sont prets pour la production.")
+        print("\nSuccès : Tous les fichiers sont validés pour la production.")
+        sys.exit(0)
     else:
-        print("Erreur : Des fichiers manquent ou sont corrompus.")
+        print("\nErreur : Le protocole d'intégrité a échoué.")
+        sys.exit(1)
 
 if __name__ == "__main__":
     verifier_fichiers()
