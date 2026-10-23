@@ -1,0 +1,7 @@
+<<EOT > .gitignore
+data/
+saved_models/
+__pycache__/
+.ipynb_checkpoints/
+.venv/
+EOT
