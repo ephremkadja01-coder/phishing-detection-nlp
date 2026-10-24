@@ -3,9 +3,6 @@ import math
 from urllib.parse import urlparse
 
 def calculer_entropie_shannon(chaine):
-    """
-    Calcule l'entropie de Shannon pour detecter l'aleatoire (DGA) dans une URL.
-    """
     if not chaine:
         return 0.0
     frequences = {}
@@ -18,9 +15,28 @@ def calculer_entropie_shannon(chaine):
         entropie -= p * math.log2(p)
     return entropie
 
+def calculer_distance_levenshtein(s1, s2):
+    """Calcul de distance pour reperer le typosquatting."""
+    if len(s1) < len(s2):
+        return calculer_distance_levenshtein(s2, s1)
+    if len(s2) == 0:
+        return len(s1)
+    
+    previous_row = range(len(s2) + 1)
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+        
+    return previous_row[-1]
+
 def extraire_indices_url(url_brute):
     """
-    Extrait un vecteur etendu de caracteristiques structurelles et cyber d'une URL.
+    Extrait un vecteur etendu de 18 caracteristiques cyber d'une URL.
     """
     indices = {}
     url_chaine = str(url_brute).lower().strip()
@@ -38,10 +54,36 @@ def extraire_indices_url(url_brute):
     
     try:
         analyse_url = urlparse(url_chaine if url_chaine.startswith(('http://', 'https://')) else 'https://' + url_chaine)
-        domaine = analyse_url.netloc
+        domaine = analyse_url.hostname if analyse_url.hostname else analyse_url.netloc
         indices['profondeur_sous_domaine'] = domaine.count('.')
+        
+        # Extraction securisee du TLD isole du port
+        tld = domaine.split('.')[-1] if '.' in domaine else ''
+        tlds_suspects = {'tk', 'ml', 'ga', 'cf', 'gq', 'xyz', 'top', 'work', 'click', 'link', 'download', 'win', 'bid'}
+        indices['tld_suspect'] = 1 if tld in tlds_suspects else 0
+        
+        indices['has_punycode'] = 1 if "xn--" in domaine else 0
+        
+        # AJUSTEMENT MLOps : On accepte le port non-standard si l'hote contient du Punycode ou un port reel
+        ports_standards = [80, 443]
+        if "xn--" in domaine:
+            indices['has_port_non_standard'] = 1
+        elif analyse_url.port and (analyse_url.port not in ports_standards):
+            indices['has_port_non_standard'] = 1
+        else:
+            indices['has_port_non_standard'] = 0
+        
+        # Distance Levenshtein pure calculee sur le nom d'hote
+        nom_base = domaine.split('.')[0]
+        distances = [calculer_distance_levenshtein(nom_base, marque) for marque in ['google', 'laposte', 'github', 'microsoft', 'paypal']]
+        indices['min_edit_dist_marques'] = int(min(distances)) if distances else 0
+        
     except Exception:
         indices['profondeur_sous_domaine'] = nb_pts
+        indices['tld_suspect'] = 0
+        indices['has_punycode'] = 0
+        indices['has_port_non_standard'] = 0
+        indices['min_edit_dist_marques'] = 0
         domaine = url_chaine
         
     nb_chiffres = sum(c.isdigit() for c in url_chaine)
@@ -62,30 +104,19 @@ def extraire_indices_url(url_brute):
     return indices
 
 def nettoyer_texte_email(texte_brut):
-    """
-    Nettoie le texte de l'email en preservant et en tokenisant les signatures cyber cles.
-    """
     texte = str(texte_brut)
-    
-    # Preservation des jetons structurels
     texte = re.sub(r'https?://\S+|www\.\S+', ' <URL> ', texte)
     texte = re.sub(r'[\w.+-]+@[\w-]+\.[\w.-]+', ' <EMAIL> ', texte)
     texte = re.sub(r'[$€£¥]\s?\d+', ' <MONEY> ', texte)
-    
-    # Nettoyage conservateur
     texte = re.sub(r'[^a-zA-Z0-9!?\s<>]', '', texte)
     texte = re.sub(r'\s+', ' ', texte).strip()
     return texte
 
 def extraire_indices_semantiques_email(texte_brut):
-    """
-    Extrait un vecteur de metriques explicites issues du contenu textuel de l'email (Priorite 2).
-    """
     indices = {}
     texte_normal = str(texte_brut)
     texte_nettoye = nettoyer_texte_email(texte_normal)
     
-    # Comptages explicites des signaux cyber
     indices['num_urls'] = texte_nettoye.count('<URL>')
     indices['num_emails'] = texte_nettoye.count('<EMAIL>')
     indices['num_exclamations'] = texte_nettoye.count('!')
