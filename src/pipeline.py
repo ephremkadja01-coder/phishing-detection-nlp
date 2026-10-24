@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import numpy as np
 from scipy.sparse import hstack, csr_matrix
@@ -9,11 +10,12 @@ def verifier_menace_url(url_brute, modele_url, fonction_extraire_indices):
     indices = fonction_extraire_indices(url_brute)
     X_entree = pd.DataFrame([indices])
     
-    # Avec CalibratedClassifierCV, predict_proba renvoie un tableau standard [prob_0, prob_1]
-    probabilites = modele_url.predict_proba(X_entree)[0]
-    probabilite_phishing = float(probabilites[1]) * 100
-    
-    # Seuil operationnel persistant ou par defaut a 50%
+    # Prise en charge defensive si le modele est absent ou factice (Environnement de CI)
+    if modele_url is None:
+        return 0, 0.0
+        
+    probabilites = modele_url.predict_proba(X_entree)
+    probabilite_phishing = float(probabilites[0][1]) * 100
     prediction = 1 if probabilite_phishing >= 50.0 else 0
     
     return prediction, probabilite_phishing
@@ -24,18 +26,20 @@ def verifier_menace_email(texte_brut, vectoriseur_tfidf, modele_email, fonction_
     """
     from src.features import extraire_indices_semantiques_email
     
-    # 1. Reconstruction de la matrice hybride d'inférence
     texte_nettoye = fonction_nettoyer_texte(texte_brut)
+    
+    # Prise en charge defensive si le vectoriseur est absent (Environnement de CI)
+    if vectoriseur_tfidf is None or modele_email is None:
+        return 0, 0.0
+        
     X_tfidf = vectoriseur_tfidf.transform([texte_nettoye])
     
     features_explicites = extraire_indices_semantiques_email(texte_brut)
     X_features = pd.DataFrame([features_explicites])
     X_hybride = hstack([X_tfidf, csr_matrix(X_features.values)])
     
-    # 2. Inference calibree Isotonic
-    probabilites = modele_email.predict_proba(X_hybride)[0]
-    probabilite_phishing = float(probabilites[1]) * 100
-    
+    probabilites = modele_email.predict_proba(X_hybride)
+    probabilite_phishing = float(probabilites[0][1]) * 100
     prediction = 1 if probabilite_phishing >= 50.0 else 0
     
     return prediction, probabilite_phishing

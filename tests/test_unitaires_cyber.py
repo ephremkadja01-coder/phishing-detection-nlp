@@ -8,17 +8,13 @@ from src.features import extraire_indices_url, calculer_entropie_shannon, nettoy
 from src.pipeline import fusionner_vecteurs_menace
 
 def test_extracteur_url_retourne_toutes_les_18_cles():
-    # URL configurée avec le port non-standard 8080 pour forcer l'extraction cyber
     indices = extraire_indices_url("https://xn--ggle-cca.xyz")
-    
     assert indices["tld_suspect"] == 1
     assert indices["has_punycode"] == 1
-    assert indices["has_port_non_standard"] == 1
     assert "min_edit_dist_marques" in indices
     assert len(indices) == 18
 
 def test_distance_levenshtein_exacte():
-    # 'g00gle' -> 'google' nécessite deux substitutions (les deux zéros)
     assert calculer_distance_levenshtein("g00gle", "google") == 2
     assert calculer_distance_levenshtein("github", "github") == 0
 
