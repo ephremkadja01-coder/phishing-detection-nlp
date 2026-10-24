@@ -1,0 +1,50 @@
+name: Continuous Integration Hub
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  audit-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. Recuperation du code source du depot
+    - name: Checkout Code Repository
+      uses: actions/checkout@v4
+
+    # 2. Configuration d'un environnement Python standardise 3.12
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    # 3. Installation des dependances figees du projet
+    - name: Install Locked Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    # 4. Execution stricte de la suite de tests unitaires pytest
+    - name: Run Cyber Unit Tests (Pytest)
+      run: |
+        python -m pytest tests/ -v
+
+    # 5. Smoke Test : Validation de l'importabilité sans regression des composants
+    - name: Run Architecture Smoke Test
+      run: |
+        python -c "import app, interface_web; print('[CI] Application components import cleanly.')"
+
+    # 6. Validation du format et de la coherence du registre metadata.json
+    - name: Validate Production Metadata Ledger
+      run: |
+        python -c "
+        import json
+        with open('models/metadata.json') as f:
+            meta = json.load(f)
+        assert meta['project_name'] == 'multi-vector-phishing-detection', 'Nom de projet invalide dans metadata.'
+        print('[CI] metadata.json structure is perfectly valid.')
+        "
