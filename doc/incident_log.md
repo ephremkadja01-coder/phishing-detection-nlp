@@ -39,3 +39,8 @@
 * **Symptom:** Continuous Integration workflows triggered on remote Ubuntu servers failed systematically with `FileNotFoundError` during code compilation steps.
 * **Root Cause:** High-coupling with host local files. The production applications (`interface_web.py` and `app.py`) triggered binary model loaders (`joblib.load()`) instantly upon package declaration at the file scope. Since `.joblib` serialized states are restricted locally by `.gitignore`, remote virtual machines crashed on missing files.
 * **Resolution:** Re-factored the deployment scripts to encapsulate all binary resource allocations inside functional execution hooks (`charger_les_composants_cyber()`) isolated under the python main entry check (`if __name__ == "__main__"`). This seals total code-to-infrastructure independence and activates a successful, fully automated continuous integration workflow.
+
+## Incident Ref #09: PIP Invalid Requirement Specifier on CI Build
+* **Symptom:** GitHub Actions runner crashed during the `Install Locked Dependencies` stage with an explicit pip package formatting restriction error.
+* **Root Cause:** A missing newline separator during a local append operation (`echo >>`) caused the string `shap==0.45.1` to concatenate directly onto the previous line, creating an invalid requirement string (`scipy==1.13.1shap==0.45.1`).
+* **Resolution:** Cleaned the `requirements.txt` manifest, separating all modules with structural returns. Pushed the repository adjustments to successfully pass all automation benchmarks and secure a fully verified green success badge on GitHub.
