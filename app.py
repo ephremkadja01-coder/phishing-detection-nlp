@@ -1,7 +1,7 @@
 import os
 import joblib
-import pandas as pd
 from src.features import extraire_indices_url, nettoyer_texte_email
+from src.pipeline import verifier_menace_url, verifier_menace_email, fusionner_vecteurs_menace
 
 dossier_modeles = "models"
 
@@ -12,41 +12,45 @@ def charger_fichiers():
     return mod_url, vec_email, mod_email
 
 def lancer_detecteur():
-    print("Detecteur de phishing pret.")
-    chemin_verif = os.path.join(dossier_modeles, "url_model_xgb.joblib")
-    
-    if not os.path.exists(chemin_verif):
-        print("Erreur : Lancez d'abord train_and_save_models.py pour creer les modeles.")
+    print("=== SYSTEME DE DETECTION DU PHISHING INDUSTRIEL ===")
+    if not os.path.exists(os.path.join(dossier_modeles, "url_model_xgb.joblib")):
+        print("Erreur : Les modèles de production ne sont pas compilés.")
         return
 
     mod_url, vec_email, mod_email = charger_fichiers()
     
-    print("1 : Tester une URL")
-    print("2 : Tester un texte d'email")
-    choix = input("Votre choix : ")
+    print("\n1 : Tester une URL seule")
+    print("2 : Tester le texte d'un e-mail seul")
+    print("3 : Tester les deux en corrélation (Fusion Multi-Modale)")
+    choix = input("Votre choix (1, 2 ou 3) : ")
     
     if choix == "1":
         url = input("Entrez l'URL : ")
-        indices = pd.DataFrame([extraire_indices_url(url)])
-        prediction = mod_url.predict(indices)[0]
-        probabilite = mod_url.predict_proba(indices)[0][1] * 100
+        _, prob = verifier_menace_url(url, mod_url, extraire_indices_url)
+        print(f"\nScore de menace URL : {prob:.2f}%")
         
-        if prediction == 1:
-            print(f"ALERT: Phishing Detected (Probability: {probabilite:.2f}%)")
-        else:
-            print(f"SECURE: Legitimate Link (Probability: {probabilite:.2f}%)")
-            
     elif choix == "2":
-        email = input("Entrez le texte de l'email : ")
-        texte_nettoye = nettoyer_texte_email(email)
-        vecteur = vec_email.transform([texte_nettoye])
-        prediction = mod_email.predict(vecteur)[0]
-        probabilite = mod_email.predict_proba(vecteur)[0][1] * 100
+        email = input("Entrez le texte de l'e-mail : ")
+        _, prob = verifier_menace_email(email, vec_email, mod_email, nettoyer_texte_email)
+        print(f"\nScore de menace E-mail : {prob:.2f}%")
         
-        if prediction == 1:
-            print(f"ALERT: Phishing Detected (Probability: {probabilite:.2f}%)")
-        else:
-            print(f"SECURE: Legitimate Email (Probability: {probabilite:.2f}%)")
+    elif choix == "3":
+        url = input("Entrez l'URL du lien contenu : ")
+        email = input("Entrez le texte complet du mail : ")
+        
+        # Calcul individuel des canaux
+        _, prob_url = verifier_menace_url(url, mod_url, extraire_indices_url)
+        _, prob_email = verifier_menace_email(email, vec_email, mod_email, nettoyer_texte_email)
+        
+        # Corrélation asymétrique via le module centralise
+        pred_fuse, score_fuse = fusionner_vecteurs_menace(prob_url, prob_email)
+        
+        print("\n--- RAPPORT DE FUSION CYBER ---")
+        print(f"Statut Global : {'⚠️ PHISHING DETECTE' if pred_fuse == 1 else '✅ LEGITIME'}")
+        print(f"Score Combiné : {score_fuse:.2f}%")
+        print(f"|- Composant URL    : {prob_url:.2f}%")
+        print(f"|- Composant E-mail : {prob_email:.2f}%")
+        print("-------------------------------")
 
 if __name__ == "__main__":
     lancer_detecteur()
