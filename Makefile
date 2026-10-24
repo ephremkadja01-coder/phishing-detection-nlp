@@ -22,7 +22,7 @@ train:
 	$(PYTHON) train_and_save_models.py
 
 test:
-	$(GRADIO_SERVER_NAME)="" $(PYTEST) tests/ -v
+	$(PYTEST) tests/ -v
 
 serve:
 	$(PYTHON) interface_web.py

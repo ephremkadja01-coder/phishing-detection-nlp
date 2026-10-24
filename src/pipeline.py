@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 
 def verifier_menace_url(url_brute, modele_url, fonction_extraire_indices):
     """
