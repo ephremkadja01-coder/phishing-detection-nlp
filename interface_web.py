@@ -9,13 +9,14 @@ from src.explain import extraire_top_contributions_url, extraire_top_contributio
 
 dossier_modeles = "models"
 
-# 1. Chargement des composants de production
+# 1. Chargement des composants de production calibrés
 mod_url = joblib.load(os.path.join(dossier_modeles, "url_model_xgb.joblib"))
 vec_email = joblib.load(os.path.join(dossier_modeles, "email_vectoriseur.joblib"))
 mod_email = joblib.load(os.path.join(dossier_modeles, "email_model_xgb.joblib"))
 
-# Récupération des noms de variables d'entraînement
-FEATURES_URL_NOMS = mod_url.get_booster().feature_names
+# CORRECTION CYBER : Extraction des noms des caractéristiques depuis l'estimateur interne calibré
+xgb_interne_url = mod_url.calibrated_classifiers_[0].estimator
+FEATURES_URL_NOMS = xgb_interne_url.get_booster().feature_names
 
 # Liste blanche cyber des domaines institutionnels majeurs
 DOMAINES_SURS = {
@@ -45,7 +46,7 @@ def analyser_url_interface(url):
         prediction, pourcentage = verifier_menace_url(url, mod_url, extraire_indices_url)
         score_val = float(pourcentage)
         
-        # CALCUL DU VRAI SHAP DE SÉCURITÉ
+        # CALCUL DU VRAI SHAP DE SÉCURITÉ CALIBRÉ
         top_declencheurs = extraire_top_contributions_url(url, mod_url, extraire_indices_url, FEATURES_URL_NOMS)
         explicability_txt = ", ".join(top_declencheurs)
         
@@ -60,7 +61,7 @@ def analyser_email_interface(email):
         prediction, pourcentage = verifier_menace_email(email, vec_email, mod_email, nettoyer_texte_email)
         score_val = float(pourcentage)
         
-        # CALCUL DU VRAI SHAP SÉMANTIQUE NLP
+        # CALCUL DU VRAI SHAP SÉMANTIQUE NLP CALIBRÉ
         top_mots = extraire_top_contributions_email(email, vec_email, mod_email, nettoyer_texte_email)
         explicability_txt = ", ".join(top_mots)
         
