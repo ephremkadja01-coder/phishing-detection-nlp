@@ -10,7 +10,7 @@
     "random_state": 42,
     "split_ratio": "80/20_stratified"
   },
-  "url_features_list": [
+    "url_features_list": [
     "longueur_url",
     "nb_points",
     "nb_tirets",
@@ -18,9 +18,15 @@
     "nb_interrogations",
     "nb_egaux",
     "nb_slashs",
+    "profondeur_sous_domaine",
+    "ratio_chiffres_lettres",
+    "ratio_caracteres_speciaux",
+    "contient_mot_suspect",
+    "entropie_url",
     "contient_ip",
     "utilise_https"
   ],
+
   "operational_thresholds": {
     "default": 0.50,
     "optimized_cyber_cost": "pending_calibration"
