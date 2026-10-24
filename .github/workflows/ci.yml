@@ -24,8 +24,14 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install pip-audit
 
-    # Certification cyber : Execution de pytest avec injection de la racine de recherche
+    # PRIORITÉ 8 : Scan automatique des vulnérabilités de dépendances (PyPA Database)
+    - name: Run Cyber Security Dependency Audit (Pip Audit)
+      run: |
+        pip-audit -r requirements.txt || echo "[MLOps Warning] Des alertes de securite dependances ont ete signalees."
+
+    # Validation unitaire des 18 variables d'URLs et de la fusion multi-modale
     - name: Run Cyber Unit Tests (Pytest)
       run: |
         export PYTHONPATH=.
