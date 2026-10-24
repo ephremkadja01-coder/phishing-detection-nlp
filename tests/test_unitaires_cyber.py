@@ -2,9 +2,10 @@ import sys
 import os
 import pytest
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Forcer l'arborescence racine dans le path systeme de Python
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.features import extraire_indices_url, calculer_entropie_shannon, nettoyer_texte_email, calculer_distance_levenshtein
+from src.features import extraire_indices_url, calculer_distance_levenshtein, nettoyer_texte_email
 from src.pipeline import fusionner_vecteurs_menace
 
 def test_extracteur_url_retourne_toutes_les_18_cles():

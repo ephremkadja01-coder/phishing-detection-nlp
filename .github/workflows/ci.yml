@@ -25,7 +25,8 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    # Exécution de votre suite de tests unitaires d'élite (100% autonome et sécurisée)
+    # Certification cyber : Execution de pytest avec injection de la racine de recherche
     - name: Run Cyber Unit Tests (Pytest)
       run: |
+        export PYTHONPATH=.
         python -m pytest tests/ -v

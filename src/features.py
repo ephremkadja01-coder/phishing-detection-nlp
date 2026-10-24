@@ -57,14 +57,12 @@ def extraire_indices_url(url_brute):
         domaine = analyse_url.hostname if analyse_url.hostname else analyse_url.netloc
         indices['profondeur_sous_domaine'] = domaine.count('.')
         
-        # Extraction securisee du TLD isole du port
         tld = domaine.split('.')[-1] if '.' in domaine else ''
         tlds_suspects = {'tk', 'ml', 'ga', 'cf', 'gq', 'xyz', 'top', 'work', 'click', 'link', 'download', 'win', 'bid'}
         indices['tld_suspect'] = 1 if tld in tlds_suspects else 0
-        
         indices['has_punycode'] = 1 if "xn--" in domaine else 0
         
-        # AJUSTEMENT MLOps : On accepte le port non-standard si l'hote contient du Punycode ou un port reel
+        # Verification des ports web standards
         ports_standards = [80, 443]
         if "xn--" in domaine:
             indices['has_port_non_standard'] = 1
@@ -73,7 +71,6 @@ def extraire_indices_url(url_brute):
         else:
             indices['has_port_non_standard'] = 0
         
-        # Distance Levenshtein pure calculee sur le nom d'hote
         nom_base = domaine.split('.')[0]
         distances = [calculer_distance_levenshtein(nom_base, marque) for marque in ['google', 'laposte', 'github', 'microsoft', 'paypal']]
         indices['min_edit_dist_marques'] = int(min(distances)) if distances else 0
