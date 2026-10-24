@@ -1,0 +1,28 @@
+{
+  "project_name": "multi-vector-phishing-detection",
+  "environment": {
+    "python_version": "3.12",
+    "scikit_learn_version": "1.5.0",
+    "xgboost_version": "2.0.3"
+  },
+  "pipeline_parameters": {
+    "email_max_features": 2500,
+    "random_state": 42,
+    "split_ratio": "80/20_stratified"
+  },
+  "url_features_list": [
+    "longueur_url",
+    "nb_points",
+    "nb_tirets",
+    "nb_arobases",
+    "nb_interrogations",
+    "nb_egaux",
+    "nb_slashs",
+    "contient_ip",
+    "utilise_https"
+  ],
+  "operational_thresholds": {
+    "default": 0.50,
+    "optimized_cyber_cost": "pending_calibration"
+  }
+}
