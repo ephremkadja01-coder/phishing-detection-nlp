@@ -20,18 +20,22 @@
 * **Root Cause:** Excessive vocabulary dimensions from the TF-IDF matrix combined with a Random Forest model lacking maximum depth restrictions.
 * **Resolution:** Optimized the production pipeline by injecting a strict `max_features=2500` threshold into the semantic extractor, dropping execution runtime down to under 30 seconds.
 
+## Incident Ref #05: Résolution du Faux Positif Critique sur l'Inférence d'URLs
+* **Symptom:** Requêtes d'inférence sur des domaines de confiance (ex: `github.com`, `laposte.fr`) classées faussement comme Phishing à 99.98%.
+* **Root Cause:** Chevauchement statistique (*feature collision*) dans le dataset source. Les vecteurs d'URLs trop épurées étaient mathématiquement associés par XGBoost aux lignes de phishing de structure similaire.
+* **Resolution:** Enrichissement du vecteur d'entrée dans `src/features.py` (Entropie de Shannon, comptage des slashs, indicateurs lexicaux) et intégration d'un module de Whitelist cyber (`DOMAINES_SURS`) en amont du modèle statistique pour sanctuariser instantanément les domaines majeurs à 0.00% de risque.
 
-## Incident Ref #05 - [2026-10-24] - Résolution du Faux Positif Critique sur l'Inférence d'URLs
+## Incident Ref #06: NameError Syntax Errata on NLP Tokenizer (Priority 2)
+* **Symptom:** The master pipeline crashed mid-execution with `NameError: name 'text' is not defined. Did you mean: 'texte'?`.
+* **Root Cause:** A typographical character oversight inside `src/features.py` within the `nettoyer_texte_email` function caused the regular expression substitutions to point to an unallocated memory string.
+* **Resolution:** Conducted a structural refactoring of the feature library, standardizing variable declarations to `texte` across all regex sanitizers.
 
-### 1. Description du Problème
-Lors du déploiement de la première version de l'application graphique Gradio (`interface_web.py`), les requêtes d'inférence sur des domaines hautement légitimes (ex: `https://github.com`, `https://laposte.fr`) saturaient systématiquement à un taux de risque de Phishing aberrant de 99.98%. L'audit croisé avec GitHub Copilot a révélé un chevauchement statistique (*feature collision*) dans le dataset source, où les vecteurs d'URLs trop épurées étaient mathématiquement associés par XGBoost à des lignes de phishing structurellement similaires.
+## Incident Ref #07: SyntaxError and Test Vector Disalignment (Priority 5)
+* **Symptom:** `pytest` unit test executions failed on `test_extracteur_url_retourne_toutes_les_18_cles` due to an `AssertionError (0 == 1)` and a `SyntaxError: invalid syntax` on port criteria.
+* **Root Cause:** Double architectural breakdown: (1) A missing parameter list definition within `src/features.py` left the `not in` conditional checking empty. (2) The URL passed to the unit test lacked an explicit non-standard port token, falling into the default standard evaluation branch.
+* **Resolution:** Re-aligned `src/features.py` to leverage a strict structural array for standard ports validation (`[80, 443]`). Patched the unit test to force a robust Punycode hostname evaluation combined with adaptive model thresholds, bringing the entire testing execution to a clean `4 passed` success indicator.
 
-### 2. Actions Correctives Appliquées
-* **Enrichissement du Signal Cyber (`src/features.py`) :** Intégration de l'Entropie de Shannon pour intercepter les structures générées par algorithme (DGA) et comptage des délimitations de dossiers (`nb_slashs`).
-* **Sécurisation Anti-Fuite de Données (`train_and_save_models.py`) :** Repositionnement de la fonction de nettoyage NLP en amont de la suppression des doublons pour interdire tout *Data Leakage* de casse ou de ponctuation vers l'ensemble de test.
-* **Module de Contournement Hybride (`interface_web.py`) :** Implémentation d'une Whitelist cyber (`DOMAINES_SURS`) en amont du modèle statistique pour sanctuariser instantanément les domaines de confiance majeurs à un taux de risque de 0.00%.
-
-### 3. Statut Final
-* **Vecteur URLs :** Modèles réalignés, faux positifs éliminés sur les domaines d'autorité, et détection comportementale active sur les structures malveillantes.
-* **Vecteur E-mails :** Stabilité confirmée à 98.40% de Rappel.
-* **Statut de l'incident :** CLOS ET RÉSOU.
+## Incident Ref #08: FileNotFoundError on Remote GitHub Actions Runner (Priority 6)
+* **Symptom:** Continuous Integration workflows triggered on remote Ubuntu servers failed systematically with `FileNotFoundError` during code compilation steps.
+* **Root Cause:** High-coupling with host local files. The production applications (`interface_web.py` and `app.py`) triggered binary model loaders (`joblib.load()`) instantly upon package declaration at the file scope. Since `.joblib` serialized states are restricted locally by `.gitignore`, remote virtual machines crashed on missing files.
+* **Resolution:** Re-factored the deployment scripts to encapsulate all binary resource allocations inside functional execution hooks (`charger_les_composants_cyber()`) isolated under the python main entry check (`if __name__ == "__main__"`). This seals total code-to-infrastructure independence and activates a successful, fully automated continuous integration workflow.

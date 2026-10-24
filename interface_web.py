@@ -9,22 +9,37 @@ from src.explain import extraire_top_contributions_url, extraire_top_contributio
 
 dossier_modeles = "models"
 
-# 1. Chargement des composants de production calibrés
-mod_url = joblib.load(os.path.join(dossier_modeles, "url_model_xgb.joblib"))
-vec_email = joblib.load(os.path.join(dossier_modeles, "email_vectoriseur.joblib"))
-mod_email = joblib.load(os.path.join(dossier_modeles, "email_model_xgb.joblib"))
+# Initialisation des variables globales à vide pour éviter les crashs d'importation en CI
+mod_url = None
+vec_email = None
+mod_email = None
+FEATURES_URL_NOMS = []
 
-# Récupération des noms de variables d'entraînement
-xgb_interne_url = mod_url.calibrated_classifiers_[0].estimator
-FEATURES_URL_NOMS = xgb_interne_url.get_booster().feature_names
+def charger_les_composants_cyber():
+    """
+    Charge de maniere securisee les artefacts binaires uniquement lors de l'execution reelle.
+    """
+    global mod_url, vec_email, mod_email, FEATURES_URL_NOMS
+    chemin_mod_url = os.path.join(dossier_modeles, "url_model_xgb.joblib")
+    
+    if os.path.exists(chemin_mod_url):
+        mod_url = joblib.load(chemin_mod_url)
+        vec_email = joblib.load(os.path.join(dossier_modeles, "email_vectoriseur.joblib"))
+        mod_email = joblib.load(os.path.join(dossier_modeles, "email_model_xgb.joblib"))
+        
+        xgb_interne_url = mod_url.calibrated_classifiers_.estimator
+        FEATURES_URL_NOMS = xgb_interne_url.get_booster().feature_names
+    else:
+        print("[MLOps Warning] Les fichiers .joblib sont absents. Mode de verification actif.")
 
 def analyser_url_interface(url):
     try:
-        # ÉTAPE 7 : Suppression totale de l'allowlist hardcodé. 100% de l'évaluation est mathématique.
+        if mod_url is None:
+            return 0.0, "⚠️ [Mode Démo] Modèle non initialisé en local."
+            
         prediction, pourcentage = verifier_menace_url(url, mod_url, extraire_indices_url)
         score_val = float(pourcentage)
         
-        # Calcul du vrai SHAP de sécurité calibré
         top_declencheurs = extraire_top_contributions_url(url, mod_url, extraire_indices_url, FEATURES_URL_NOMS)
         explicability_txt = ", ".join(top_declencheurs)
         
@@ -36,10 +51,12 @@ def analyser_url_interface(url):
 
 def analyser_email_interface(email):
     try:
+        if mod_email is None:
+            return 0.0, "⚠️ [Mode Démo] Modèle sémantique non initialisé."
+            
         prediction, pourcentage = verifier_menace_email(email, vec_email, mod_email, nettoyer_texte_email)
         score_val = float(pourcentage)
         
-        # Calcul du vrai SHAP sémantique NLP calibré
         top_mots = extraire_top_contributions_email(email, vec_email, mod_email, nettoyer_texte_email)
         explicability_txt = ", ".join(top_mots)
         
@@ -76,7 +93,7 @@ def analyser_fusion_interface(url, email):
     except Exception as e:
         return f"Erreur lors du calcul de fusion : {str(e)}"
 
-# 3. Construction de l'interface visuelle
+# Construction de l'interface visuelle
 with gr.Blocks(theme=gr.themes.Soft(), title="Cyber-Detector App Hub") as demo:
     gr.Markdown("# 🛡️ Multi-Vector Phishing Detection Hub — Operational Edition")
     gr.Markdown("Analyse comportementale multicouche et explicabilité mathématique SHAP pour analystes SOC.")
@@ -103,4 +120,6 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Cyber-Detector App Hub") as demo:
             fuse_button.click(analyser_fusion_interface, inputs=[fuse_url, fuse_email], outputs=fuse_output)
 
 if __name__ == "__main__":
+    # Règle MLOps : On ne charge les binaires et n'allume l'interface que si le script est exécuté directement
+    charger_les_composants_cyber()
     demo.launch()

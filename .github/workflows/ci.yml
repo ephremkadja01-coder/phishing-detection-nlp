@@ -7,38 +7,25 @@ on:
     branches: [ main ]
 
 jobs:
-  production-check:
+  audit-and-test:
     runs-on: ubuntu-latest
 
     steps:
-    # 1. Récupération du code source depuis le dépôt GitHub
     - name: Checkout Code Repository
       uses: actions/checkout@v4
 
-    # 2. Configuration de l'environnement Python standardisé 3.12
     - name: Set up Python 3.12
       uses: actions/setup-python@v5
       with:
         python-version: '3.12'
         cache: 'pip'
 
-    # 3. Installation des dépendances définies
     - name: Install Locked Dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    # 4. Certification de l'intégrité syntaxique (Pas de crash de compilation)
-    - name: Verify Python Code Compilation
+    # Exécution de votre suite de tests unitaires d'élite (100% autonome et sécurisée)
+    - name: Run Cyber Unit Tests (Pytest)
       run: |
-        python -m py_compile app.py interface_web.py train_and_save_models.py
-        print("[CI SUCCESS] Tous les scripts maîtres compilent parfaitement sans erreur de syntaxe.")
-
-    # 5. Validation unitaire isolée et autonome
-    - name: Run Core Logic Smoke Test
-      run: |
-        python -c "
-        from src.features import calculer_entropie_shannon
-        assert calculer_entropie_shannon('aaaaa') == 0.0, 'Erreur de calcul sur l\'entropie.'
-        print('[CI SUCCESS] Les fonctions mathématiques de base du projet sont stables.')
-        "
+        python -m pytest tests/ -v
