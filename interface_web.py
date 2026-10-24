@@ -1,5 +1,7 @@
 import os
 import joblib
+import numpy as np
+from urllib.parse import urlparse
 import gradio as gr
 from src.features import extraire_indices_url, nettoyer_texte_email
 from src.pipeline import verifier_menace_url, verifier_menace_email
@@ -11,24 +13,61 @@ mod_url = joblib.load(os.path.join(dossier_modeles, "url_model_xgb.joblib"))
 vec_email = joblib.load(os.path.join(dossier_modeles, "email_vectoriseur.joblib"))
 mod_email = joblib.load(os.path.join(dossier_modeles, "email_model_xgb.joblib"))
 
-# 2. Fonctions de raccordement pour l'interface graphique
+# 2. Liste blanche cyber des domaines institutionnels et majeurs
+DOMAINES_SURS = {
+    "github.com", "github.io", "laposte.fr", "laposte.com", "google.com", 
+    "google.fr", "microsoft.com", "apple.com", "linkedin.com", "facebook.com",
+    "twitter.com", "amazon.fr", "amazon.com", "netflix.com", "iua.ci"
+}
+
+def verifier_liste_blanche(url):
+    """
+    Verifie si l'URL appartient nativement a un domaine de confiance.
+    """
+    try:
+        url_chaine = str(url).lower().strip()
+        if not url_chaine.startswith(('http://', 'https://')):
+            url_chaine = 'https://' + url_chaine
+        analyse = urlparse(url_chaine)
+        domaine = analyse.netloc
+        if domaine.startswith('www.'):
+            domaine = domaine[4:]
+        return domaine in DOMAINES_SURS
+    except Exception:
+        return False
+
 def analyser_url_interface(url):
-    prediction, probabilite = verifier_menace_url(url, mod_url, extraire_indices_url)
-    confiance = probabilite[0][1] if prediction == 1 else probabilite[0][0]
-    
-    if prediction == 1:
-        return f"⚠️ ALERTE : URL de Phishing Détectée !\nNiveau de risque : {confiance:.2f}%"
-    return f"✅ SÉCURISÉ : Ce lien semble légitime.\nProbabilité de phishing : {probabilite[0][1]:.2f}%"
+    try:
+        # SECURITÉ INDUSTRIELLE : Court-circuit immédiat si le domaine est de confiance
+        if verifier_liste_blanche(url):
+            return "✅ SÉCURISÉ : Ce lien appartient à un domaine de confiance certifié.\nProbabilité de phishing : 0.00%"
+
+        prediction, pourcentage = verifier_menace_url(url, mod_url, extraire_indices_url)
+        
+        # Securisation de l'affichage des types complexes renvoyes par le pipeline
+        pred_val = int(np.array(prediction).flatten()[0])
+        score_val = float(np.array(pourcentage).flatten()[1]) if len(np.array(pourcentage).flatten()) > 1 else float(np.array(pourcentage).flatten()[0])
+        
+        if pred_val == 1:
+            return f"⚠️ ALERTE : URL de Phishing Détectée !\nNiveau de risque : {score_val:.2f}%"
+        return f"✅ SÉCURISÉ : Ce lien semble légitime.\nProbabilité de phishing : {score_val:.2f}%"
+    except Exception as e:
+        return f"Erreur technique lors de l'analyse : {str(e)}"
 
 def analyser_email_interface(email):
-    prediction, probabilite = verifier_menace_email(email, vec_email, mod_email, nettoyer_texte_email)
-    confiance = probabilite[0][1] if prediction == 1 else probabilite[0][0]
-    
-    if prediction == 1:
-        return f"⚠️ ALERTE : Contenu Suspect (Phishing d'E-mail) !\nIndice de menace : {confiance:.2f}%"
-    return f"✅ SÉCURISÉ : Cet e-mail semble sain.\nProbabilité de phishing : {probabilite[0][1]:.2f}%"
+    try:
+        prediction, pourcentage = verifier_menace_email(email, vec_email, mod_email, nettoyer_texte_email)
+        
+        pred_val = int(np.array(prediction).flatten()[0])
+        score_val = float(np.array(pourcentage).flatten()[1]) if len(np.array(pourcentage).flatten()) > 1 else float(np.array(pourcentage).flatten()[0])
+        
+        if pred_val == 1:
+            return f"⚠️ ALERTE : Contenu Suspect (Phishing d'E-mail) !\nIndice de menace : {score_val:.2f}%"
+        return f"✅ SÉCURISÉ : Cet e-mail semble sain.\nProbabilité de phishing : {score_val:.2f}%"
+    except Exception as e:
+        return f"Erreur technique lors de l'analyse : {str(e)}"
 
-# 3. Construction de l'interface visuelle moderne
+# 3. Construction de l'interface visuelle
 with gr.Blocks(theme=gr.themes.Soft(), title="Cyber-Detector App") as demo:
     gr.Markdown("# 🛡️ Multi-Vector Phishing Detection Hub")
     gr.Markdown("Analyse comportementale en temps réel par Intelligence Artificielle (XGBoost Engines).")
@@ -46,6 +85,5 @@ with gr.Blocks(theme=gr.themes.Soft(), title="Cyber-Detector App") as demo:
             email_output = gr.Textbox(label="Verdict du Détecteur")
             email_button.click(analyser_email_interface, inputs=email_input, outputs=email_output)
 
-# 4. Lancement du serveur local
 if __name__ == "__main__":
     demo.launch()

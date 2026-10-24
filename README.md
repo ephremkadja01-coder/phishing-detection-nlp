@@ -1,80 +1,236 @@
-# Multi-Vector Phishing Detection Pipeline
+# Phishing Detection with URLs and Email Text
 
-A modular machine learning prototype designed to evaluate the classification of malicious web links (URLs) and e-mail textual contents using custom structural feature engineering and Natural Language Processing (NLP) models.
+A machine-learning prototype for classifying suspicious URLs and phishing emails. It trains separate Random Forest and XGBoost models for URL features and email text, and provides command-line and Gradio interfaces for trying the saved models.
 
-## Project Context & Operational Reality
+> **Important:** This is an educational prototype, not a production security product. A model prediction can be wrong, including for well-known legitimate sites. Do not use it as the only basis for blocking links, handling email, or making security decisions.
 
-This repository contains a local pipeline developed to study the behavior of tree-based machine learning classifiers against online threat vectors. It operates concurrently on two raw surfaces: parsing URL strings for structural anomalies and evaluating text mutations within email bodies.
+## Business Context
 
-This system is built around two key constraints observed during our development phase:
-1. **Asymmetric Security Metric:** In phishing detection, missing a threat (False Negative) can lead to a security breach, while blocking a clean item (False Positive) creates minor disruption. Therefore, our models are structurally optimized to prioritize **Recall on the Phishing class**.
-2. **Computational Scale Limits:** Processing massive arrays of text variables can easily saturate standard hardware. The local pipeline is heavily restricted to lightweight feature spaces to avoid machine freezes and optimize execution times on standard CPU architectures.
+Phishing can arrive through links or deceptive email content. This project explores two different detection approaches:
 
-## Repository Layout
+- A structural model looks for patterns in a URL, such as its length, punctuation, entropy, and HTTPS usage.
+- A text model uses TF-IDF features from an email body to identify patterns associated with phishing.
 
-The current architecture separates data files, R&D environments, and core code logic. The layout on disk is structured as follows:
+The two detection paths are trained and run independently. The project is intended for learning and experimentation; it does not query live domain-reputation services, inspect web page contents, or provide a complete email security workflow.
+
+## Repository Structure
 
 ```text
 phishing-detection-nlp/
+├── app.py                       # Command-line inference interface
+├── interface_web.py             # Gradio web interface
+├── train_and_save_models.py     # Data preparation, training, and model saving
+├── requirements.txt             # Pinned Python dependencies
 ├── src/
-│   ├── __init__.py
-│   ├── features.py            # Custom string cleaning and cyber feature extractors
-│   ├── model.py               # Data splitting and tree-based model architectures
-│   └── pipeline.py            # Shared functions for production inference
-├── doc/
-│   ├── business_logic.md      # Cyber threat modeling and metric optimization notes
-│   └── incident_log.md        # Technical incidents ledger and troubleshooting records
+│   ├── features.py              # URL feature extraction and email text cleaning
+│   ├── model.py                 # Data splitting, model training, and split saving
+│   └── pipeline.py              # Shared inference functions
+├── tests/
+│   └── test_model_loading.py    # Checks that the saved model files can be loaded
+├── doc/                         # Project notes and incident log
+├── notebooks/                   # Exploratory and evaluation notebooks
 ├── data/
-│   ├── raw/                   # Immutable local data files (PhiUSIIL URL & Combined Email datasets)
-│   └── processed/             # Empty directory (Reserved for future persistent batch outputs)
-├── models/                    # Reserved directory for persisted binary model artifacts (.joblib)
-├── notebooks/                 # CRISP-DM experimental phase tracking
-│   ├── 01_data_understanding.ipynb       # Data exploration logs (Pending content population)
-│   ├── 02_data_preparation.ipynb         # EDA and text tokenization research entry point
-│   ├── 03_modeling_experiments.ipynb      # R&D modeling tests (Pending content population)
-│   └── 04_model_evaluation.ipynb           # Local metrics curves (Pending content population)
-├── app.py                     # Command-line prediction interface
-├── train_and_save_models.py   # Master script automating local data processing and training
-└── test_model_loading.py      # Pre-deployment artifact validation smoke test
+│   ├── raw/                     # Local source datasets (not tracked by Git)
+│   └── processed/               # Locally generated train/test CSV files
+└── models/                      # Locally generated .joblib artifacts
 ```
 
-*   `src/` holds the operational codebase imported concurrently by experimental components and root-level automation scripts to maintain environment consistency.
-*   `notebooks/` records our research journey. To avoid repository bloat, three notebooks (`01`, `03`, `04`) act as placeholders for incoming documentation, while `02` centers on active raw data preparation.
+The contents of `data/` and `models/*.joblib` are excluded from version control. Therefore, cloning the repository alone is not enough to run training or inference: you must supply the required datasets and train the models first.
 
-## Data Pipeline & Modeling Strategy
+## End-to-End Pipeline
 
-**1. Data Ingestion & Target Construction.** The pipeline ingests two independent datasets: the PhiUSIIL URL collection (**235,795 rows**) and a consolidated email corpus (**82,486 instances** compiled across Enron, CEAS, and Nazario records). Target classes are mapped into binary indicators where `1` represents a malicious threat and `0` signifies a legitimate element.
+1. Load the URL and email CSV files from `data/raw/`.
+2. Remove duplicate rows based on the raw URL or email text, then create stratified 80/20 train/test splits with a fixed split seed.
+3. Extract URL features or clean and vectorize email text.
+4. Train a Random Forest and an XGBoost classifier for each detection path.
+5. Print phishing-class recall and macro-F1 on each test split.
+6. Save the split CSVs under `data/processed/` and the trained artifacts under `models/`.
+7. Load the saved artifacts in the CLI or web interface to classify new inputs.
 
-**2. Target & Feature Engineering (URLs).** Raw URL strings pass through `src/features.py` to extract specific structural features: total string length, character counting flags (`.`, `-`, `@`, `?`, `=`), checking for direct IPv4 bypasses, and secure protocol initiation.
+The training script processes both datasets in sequence. It expects both source files to be present, even if you only plan to use one of the interfaces.
 
-**3. Text Preprocessing Boundaries (Emails).** Email text body strings are forced to lower-case and stripped of non-alphabetic indicators. Features are then extracted via a `TfidfVectorizer` limited to its `max_features=2500` most frequent tokens. This dimensional restriction was introduced to prevent kernel memory saturation during high-volume matrix evaluations.
+## Data and Label Requirements
 
-**4. Separation & Modelling.** An 80/20 stratified split is calculated on both sets. To maintain strict environment replication, data partitions are held in memory during the process instead of being written back to disk inside `data/processed/`. Two tree-based families are compiled and saved in parallel: an ensemble **Random Forest Classifier** and an optimized **XGBoost Classifier**.
+The datasets are not bundled with this repository. Obtain them from their respective sources, review their terms of use, and place them in the following locations:
 
-## Version Control & Persistence Policy
+```text
+data/
+└── raw/
+    ├── PhiUSIIL_Phishing_URL_Dataset.csv
+    └── phishings_emails/
+        └── phishing_email.csv
+```
 
-*   **Heavy Data Files Exclusion:** Local datasets (`data/raw/` totaling ~371 MB) are heavily restricted and excluded from Git tracking via `.gitignore` rules to maintain repository lightness and prevent transfer buffer errors.
-*   **Artifact Isolation:** Serialized binary files (`models/*.joblib` totaling ~67 MB) represent transient environment states and are strictly locked locally. They are designed to be recompiled deterministically by executing `train_and_save_models.py` directly inside the host environment.
-*   **Predictive Validation:** Pipeline stability is mechanically guarded by `test_model_loading.py`, which spawns a verification process to ensure serialized files unpack cleanly from disk without system regression.
+The training script expects these columns:
 
-## Installation & Replication
+| Dataset file | Required columns | Notes |
+|---|---|---|
+| `data/raw/PhiUSIIL_Phishing_URL_Dataset.csv` | `URL`, `label` | The script maps source `label=0` to phishing (`1`) and source `label=1` to legitimate (`0`). |
+| `data/raw/phishings_emails/phishing_email.csv` | `text_combined`, `label` | This must already be a consolidated CSV. The script uses `label` as-is: `1` must mean phishing and `0` legitimate. |
 
-The system requires an isolated Python 3.12+ environment.
+The email script does not combine the other email corpus files in `data/raw/phishings_emails/`. Prepare the consolidated CSV with the required schema before training. Incorrect or inconsistent labels will make the resulting evaluation and predictions unreliable.
+
+## Feature Engineering
+
+### URLs
+
+`src/features.py` extracts numeric indicators from each URL, including:
+
+- URL length and counts of `.`, `-`, `@`, `?`, `=`, and `/`;
+- Shannon entropy of the URL string;
+- a simple indicator for selected brand-name strings;
+- an IPv4 address pattern check; and
+- whether the string starts with HTTPS.
+
+These features describe the string, not the actual safety or ownership of the website. The brand-name feature is a simple substring heuristic and should not be interpreted as domain verification.
+
+The Gradio interface also has a hard-coded exact-domain allowlist that can bypass URL model inference for listed hosts. This behavior exists only in `interface_web.py`; the CLI does not use it. The list is limited, manually maintained, and not a trusted-domain service.
+
+### Email text
+
+Email text is converted to lowercase, non-letter characters are removed, and repeated whitespace is normalized. A `TfidfVectorizer` with a maximum vocabulary size of 2,500 transforms the cleaned text before classification.
+
+## Models and Evaluation
+
+For both URLs and emails, the training script fits:
+
+- `RandomForestClassifier`
+- `XGBClassifier`
+
+The target class `1` represents phishing at inference time. During training, the script prints recall for class `1` and macro-F1 for the held-out split. These are local split metrics, not an independent benchmark or a guarantee of performance on new data.
+
+The split CSVs are written to:
+
+```text
+data/processed/
+├── urls_train.csv
+├── urls_test.csv
+├── emails_train.csv
+└── emails_test.csv
+```
+
+The saved inference artifacts are:
+
+```text
+models/
+├── url_model_rf.joblib
+├── url_model_xgb.joblib
+├── email_model_rf.joblib
+├── email_model_xgb.joblib
+└── email_vectoriseur.joblib
+```
+
+The web and command-line applications use the XGBoost models. Model files are generated locally and are not committed to this repository.
+
+## Installation and Usage
+
+### Requirements
+
+- Git
+- Python 3.10–3.12 recommended
+- The two input datasets described above
+
+Training loads the datasets into memory. Runtime and memory use depend on the machine and dataset files.
+
+### 1. Clone the repository
 
 ```bash
-# Clone the repository and position yourself at the root directory
+git clone https://github.com/ephremkadja01-coder/phishing-detection-nlp.git
 cd phishing-detection-nlp
+```
 
-# Instantiate and activate the isolated virtual environment
+### 2. Create and activate a virtual environment
+
+Linux/macOS:
+
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
-
-# Install explicitly required dependencies
-pip install -r requirements.txt
-
-# Run the master pipeline to process local data and train models
-python train_and_save_models.py
-
-# Execute the automated pre-deployment verification smoke test
-python test_model_loading.py
 ```
+
+Windows PowerShell:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+### 3. Install dependencies
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+### 4. Add the datasets
+
+Place the files in the paths listed in [Data and Label Requirements](#data-and-label-requirements). Confirm that the CSV headers match the required column names exactly.
+
+### 5. Train and save the models
+
+Run from the repository root:
+
+```bash
+python train_and_save_models.py
+```
+
+This trains both URL and email models, writes processed split files, prints evaluation metrics, and saves the five `.joblib` artifacts in `models/`.
+
+### 6. Check that model artifacts load
+
+```bash
+python tests/test_model_loading.py
+```
+
+This is an artifact-loading smoke check. It does not test predictive quality or validate the model against fresh data.
+
+### 7. Run an inference interface
+
+Command-line interface:
+
+```bash
+python app.py
+```
+
+Choose `1` to analyze a URL or `2` to analyze email text, then enter the requested input.
+
+Gradio web interface:
+
+```bash
+python interface_web.py
+```
+
+Open the local address printed by Gradio, usually `http://127.0.0.1:7860`.
+
+Run both applications from the repository root so their relative paths to `models/` resolve correctly.
+
+## Reproducibility
+
+The train/test split uses `random_state=42` and stratifies on the target label. The model constructors also specify `random_state=42`. Reproducing identical results still depends on using the same input data and compatible dependency versions; the saved data and models are intentionally local and are not included in Git.
+
+The pinned dependencies are listed in `requirements.txt`. Joblib model artifacts are Python-library-version sensitive, so for a different machine or environment, the recommended workflow is to install the requirements and retrain locally rather than copy `.joblib` files between environments.
+
+## Technical Stack
+
+- **Python** for data processing and application code
+- **pandas** for CSV loading and data preparation
+- **scikit-learn** for train/test splitting, Random Forest, TF-IDF, and evaluation metrics
+- **XGBoost** for gradient-boosted classification
+- **joblib** for saving and loading fitted models
+- **Gradio** for the browser-based interface
+
+## Limitations and Safety Notes
+
+- URL inference uses a small set of hand-engineered string features. It does not check domain age, DNS, certificates, redirects, page contents, or live reputation.
+- A legitimate URL may be classified as phishing, and a phishing URL may be classified as legitimate. Treat predictions as experimental signals, not a verdict.
+- The web allowlist is a local shortcut for exact hostnames, not proof that a URL or page is safe. The CLI does not apply the allowlist.
+- The email classifier uses TF-IDF and does not understand meaning in the way a contextual language model does.
+- Reported metrics are calculated on a random split from the supplied datasets. They may not represent performance on current, unseen traffic.
+- Training-time duplicate removal is performed on the raw input text before splitting. The email cleaning/vectorization is applied after the split; this is not a guarantee against all forms of dataset leakage.
+- Never use this prototype as the sole control for email filtering, URL blocking, or incident response.
+
+## References
+
+- [scikit-learn documentation](https://scikit-learn.org/stable/)
+- [XGBoost documentation](https://xgboost.readthedocs.io/)
+- [Gradio documentation](https://www.gradio.app/docs)

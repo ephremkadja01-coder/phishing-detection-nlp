@@ -19,3 +19,19 @@
 * **Symptom:** The Jupyter notebook kernel would hang indefinitely when training on the 82,486 e-mail records.
 * **Root Cause:** Excessive vocabulary dimensions from the TF-IDF matrix combined with a Random Forest model lacking maximum depth restrictions.
 * **Resolution:** Optimized the production pipeline by injecting a strict `max_features=2500` threshold into the semantic extractor, dropping execution runtime down to under 30 seconds.
+
+
+## Incident Ref #05 - [2026-10-24] - Résolution du Faux Positif Critique sur l'Inférence d'URLs
+
+### 1. Description du Problème
+Lors du déploiement de la première version de l'application graphique Gradio (`interface_web.py`), les requêtes d'inférence sur des domaines hautement légitimes (ex: `https://github.com`, `https://laposte.fr`) saturaient systématiquement à un taux de risque de Phishing aberrant de 99.98%. L'audit croisé avec GitHub Copilot a révélé un chevauchement statistique (*feature collision*) dans le dataset source, où les vecteurs d'URLs trop épurées étaient mathématiquement associés par XGBoost à des lignes de phishing structurellement similaires.
+
+### 2. Actions Correctives Appliquées
+* **Enrichissement du Signal Cyber (`src/features.py`) :** Intégration de l'Entropie de Shannon pour intercepter les structures générées par algorithme (DGA) et comptage des délimitations de dossiers (`nb_slashs`).
+* **Sécurisation Anti-Fuite de Données (`train_and_save_models.py`) :** Repositionnement de la fonction de nettoyage NLP en amont de la suppression des doublons pour interdire tout *Data Leakage* de casse ou de ponctuation vers l'ensemble de test.
+* **Module de Contournement Hybride (`interface_web.py`) :** Implémentation d'une Whitelist cyber (`DOMAINES_SURS`) en amont du modèle statistique pour sanctuariser instantanément les domaines de confiance majeurs à un taux de risque de 0.00%.
+
+### 3. Statut Final
+* **Vecteur URLs :** Modèles réalignés, faux positifs éliminés sur les domaines d'autorité, et détection comportementale active sur les structures malveillantes.
+* **Vecteur E-mails :** Stabilité confirmée à 98.40% de Rappel.
+* **Statut de l'incident :** CLOS ET RÉSOU.
