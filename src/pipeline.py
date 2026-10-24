@@ -3,35 +3,47 @@ import numpy as np
 from scipy.sparse import hstack, csr_matrix
 
 def verifier_menace_url(url_brute, modele_url, fonction_extraire_indices):
+    """
+    Extrait les indices d'une URL et predit la menace via le modele calibre Isotonic.
+    """
     indices = fonction_extraire_indices(url_brute)
     X_entree = pd.DataFrame([indices])
     
-    prediction = int(modele_url.predict(X_entree)[0])
-    probabilite = float(modele_url.predict_proba(X_entree)[0][1]) * 100
+    # Avec CalibratedClassifierCV, predict_proba renvoie un tableau standard [prob_0, prob_1]
+    probabilites = modele_url.predict_proba(X_entree)[0]
+    probabilite_phishing = float(probabilites[1]) * 100
     
-    return prediction, probabilite
+    # Seuil operationnel persistant ou par defaut a 50%
+    prediction = 1 if probabilite_phishing >= 50.0 else 0
+    
+    return prediction, probabilite_phishing
 
 def verifier_menace_email(texte_brut, vectoriseur_tfidf, modele_email, fonction_nettoyer_texte):
-    # Pour s'aligner avec le script de training, on importe dynamiquement l'extracteur sémantique
+    """
+    Nettoie le texte d'un email et predit la menace via le pipeline hybride calibre.
+    """
     from src.features import extraire_indices_semantiques_email
     
-    # 1. Pipeline TF-IDF
+    # 1. Reconstruction de la matrice hybride d'inférence
     texte_nettoye = fonction_nettoyer_texte(texte_brut)
     X_tfidf = vectoriseur_tfidf.transform([texte_nettoye])
     
-    # 2. Pipeline Signaux Cyber
     features_explicites = extraire_indices_semantiques_email(texte_brut)
     X_features = pd.DataFrame([features_explicites])
-    
-    # 3. Fusion des axes d'inférence
     X_hybride = hstack([X_tfidf, csr_matrix(X_features.values)])
     
-    prediction = int(modele_email.predict(X_hybride)[0])
-    probabilite = float(modele_email.predict_proba(X_hybride)[0][1]) * 100
+    # 2. Inference calibree Isotonic
+    probabilites = modele_email.predict_proba(X_hybride)[0]
+    probabilite_phishing = float(probabilites[1]) * 100
     
-    return prediction, probabilite
+    prediction = 1 if probabilite_phishing >= 50.0 else 0
+    
+    return prediction, probabilite_phishing
 
 def fusionner_vecteurs_menace(score_url, score_email, seuil_cyber=80.0):
+    """
+    Meta-Regle de fusion asymetrique basee sur les probabilites physiques calibrees.
+    """
     if score_url >= seuil_cyber or score_email >= seuil_cyber:
         score_fusionne = max(score_url, score_email)
         prediction_fusionnee = 1
