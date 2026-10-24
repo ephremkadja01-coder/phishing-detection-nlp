@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 import gradio as gr
 from src.features import extraire_indices_url, nettoyer_texte_email
 from src.pipeline import verifier_menace_url, verifier_menace_email, fusionner_vecteurs_menace
-from src.explain import extraire_contributions_url, extraire_contributions_email
+from src.explain import extraire_top_contributions_url, extraire_top_contributions_email
 
 dossier_modeles = "models"
 
@@ -46,7 +46,7 @@ def analyser_url_interface(url):
         score_val = float(pourcentage)
         
         # CALCUL DU VRAI SHAP DE SÉCURITÉ
-        top_declencheurs = extraire_contributions_url(url, mod_url, extraire_indices_url, FEATURES_URL_NOMS)
+        top_declencheurs = extraire_top_contributions_url(url, mod_url, extraire_indices_url, FEATURES_URL_NOMS)
         explicability_txt = ", ".join(top_declencheurs)
         
         if int(prediction) == 1:
@@ -61,7 +61,7 @@ def analyser_email_interface(email):
         score_val = float(pourcentage)
         
         # CALCUL DU VRAI SHAP SÉMANTIQUE NLP
-        top_mots = extraire_contributions_email(email, vec_email, mod_email, nettoyer_texte_email)
+        top_mots = extraire_top_contributions_email(email, vec_email, mod_email, nettoyer_texte_email)
         explicability_txt = ", ".join(top_mots)
         
         if int(prediction) == 1:
@@ -79,7 +79,6 @@ def analyser_fusion_interface(url, email):
         
         verdict = "🚨 ALERTE CRITIQUE : Phishing Combiné Détecté !" if prediction_fusionnee == 1 else "🟢 SÉCURISÉ : Les signaux combinés sont stables."
         
-        # Isolement des explications SHAP propres de chaque sous-onglet pour le rapport SOC fusionné
         exp_url = msg_url.split("\n\n")[-1] if "\n\n" in msg_url else ""
         exp_email = msg_email.split("\n\n")[-1] if "\n\n" in msg_email else ""
         
