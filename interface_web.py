@@ -1,7 +1,7 @@
 import os
 import joblib
 import numpy as np
-from urllib.parse import urlparse
+import pandas as pd
 import gradio as gr
 from src.features import extraire_indices_url, nettoyer_texte_email
 from src.pipeline import verifier_menace_url, verifier_menace_email, fusionner_vecteurs_menace
@@ -14,39 +14,17 @@ mod_url = joblib.load(os.path.join(dossier_modeles, "url_model_xgb.joblib"))
 vec_email = joblib.load(os.path.join(dossier_modeles, "email_vectoriseur.joblib"))
 mod_email = joblib.load(os.path.join(dossier_modeles, "email_model_xgb.joblib"))
 
-# CORRECTION CYBER : Extraction des noms des caractéristiques depuis l'estimateur interne calibré
+# Récupération des noms de variables d'entraînement
 xgb_interne_url = mod_url.calibrated_classifiers_[0].estimator
 FEATURES_URL_NOMS = xgb_interne_url.get_booster().feature_names
 
-# Liste blanche cyber des domaines institutionnels majeurs
-DOMAINES_SURS = {
-    "github.com", "github.io", "laposte.fr", "laposte.com", "google.com", 
-    "google.fr", "microsoft.com", "apple.com", "linkedin.com", "facebook.com",
-    "twitter.com", "amazon.fr", "amazon.com", "netflix.com", "iua.ci"
-}
-
-def verifier_liste_blanche(url):
-    try:
-        url_chaine = str(url).lower().strip()
-        if not url_chaine.startswith(('http://', 'https://')):
-            url_chaine = 'https://' + url_chaine
-        analyse = urlparse(url_chaine)
-        domaine = analyse.netloc
-        if domaine.startswith('www.'):
-            domaine = domaine[4:]
-        return domaine in DOMAINES_SURS
-    except Exception:
-        return False
-
 def analyser_url_interface(url):
     try:
-        if verifier_liste_blanche(url):
-            return 0.0, "✅ SÉCURISÉ : Ce lien appartient à un domaine de confiance certifié.\nProbabilité de phishing : 0.00%\n\n[SHAP Attribution] : Whitelist institutionnelle active."
-
+        # ÉTAPE 7 : Suppression totale de l'allowlist hardcodé. 100% de l'évaluation est mathématique.
         prediction, pourcentage = verifier_menace_url(url, mod_url, extraire_indices_url)
         score_val = float(pourcentage)
         
-        # CALCUL DU VRAI SHAP DE SÉCURITÉ CALIBRÉ
+        # Calcul du vrai SHAP de sécurité calibré
         top_declencheurs = extraire_top_contributions_url(url, mod_url, extraire_indices_url, FEATURES_URL_NOMS)
         explicability_txt = ", ".join(top_declencheurs)
         
@@ -61,7 +39,7 @@ def analyser_email_interface(email):
         prediction, pourcentage = verifier_menace_email(email, vec_email, mod_email, nettoyer_texte_email)
         score_val = float(pourcentage)
         
-        # CALCUL DU VRAI SHAP SÉMANTIQUE NLP CALIBRÉ
+        # Calcul du vrai SHAP sémantique NLP calibré
         top_mots = extraire_top_contributions_email(email, vec_email, mod_email, nettoyer_texte_email)
         explicability_txt = ", ".join(top_mots)
         
