@@ -20,12 +20,11 @@ def calculer_entropie_shannon(chaine):
 
 def extraire_indices_url(url_brute):
     """
-    Extrait un vecteur etendu de caractéristiques structurelles et cyber d'une URL.
+    Extrait un vecteur etendu de caracteristiques structurelles et cyber d'une URL.
     """
     indices = {}
     url_chaine = str(url_brute).lower().strip()
     
-    # 1. Base lexicale et longueur
     longueur = len(url_chaine)
     indices['longueur_url'] = longueur
     
@@ -37,8 +36,6 @@ def extraire_indices_url(url_brute):
     indices['nb_egaux'] = url_chaine.count('=')
     indices['nb_slashs'] = url_chaine.count('/')
     
-    # 2. ENRICHISSEMENT CYBER AVANCÉ (Priorité 3)
-    # Calcul de la profondeur de sous-domaine
     try:
         analyse_url = urlparse(url_chaine if url_chaine.startswith(('http://', 'https://')) else 'https://' + url_chaine)
         domaine = analyse_url.netloc
@@ -47,7 +44,6 @@ def extraire_indices_url(url_brute):
         indices['profondeur_sous_domaine'] = nb_pts
         domaine = url_chaine
         
-    # Calcul des ratios statistiques
     nb_chiffres = sum(c.isdigit() for c in url_chaine)
     nb_lettres = sum(c.isalpha() for c in url_chaine)
     indices['ratio_chiffres_lettres'] = round(nb_chiffres / (nb_lettres + 1), 4)
@@ -55,14 +51,10 @@ def extraire_indices_url(url_brute):
     caracteres_speciaux = url_chaine.count('.') + url_chaine.count('-') + url_chaine.count('?') + url_chaine.count('=') + url_chaine.count('/')
     indices['ratio_caracteres_speciaux'] = round(caracteres_speciaux / (longueur + 1), 4)
     
-    # Analyse lexicale des mots-cles d'ingénierie sociale
     mots_suspects = ['login', 'verify', 'secure', 'account', 'banking', 'update', 'signin', 'compte']
     indices['contient_mot_suspect'] = 1 if any(mot in url_chaine for mot in mots_suspects) else 0
-    
-    # Statistiques de desordre (Shannon)
     indices['entropie_url'] = round(calculer_entropie_shannon(url_chaine), 4)
     
-    # 3. Verifications de l'hote et protocoles
     motif_ip = r'(?:\d{1,3}\.){3}\d{1,3}'
     indices['contient_ip'] = 1 if re.search(motif_ip, domaine) else 0
     indices['utilise_https'] = 1 if url_chaine.startswith('https') else 0
@@ -71,9 +63,45 @@ def extraire_indices_url(url_brute):
 
 def nettoyer_texte_email(texte_brut):
     """
-    Normalise le texte pour le traitement NLP.
+    Nettoie le texte de l'email en preservant et en tokenisant les signatures cyber cles.
     """
-    texte = str(texte_brut).lower()
-    texte = re.sub(r'[^a-zA-Z\s]', '', texte)
+    texte = str(texte_brut)
+    
+    # Preservation des jetons structurels
+    texte = re.sub(r'https?://\S+|www\.\S+', ' <URL> ', texte)
+    texte = re.sub(r'[\w.+-]+@[\w-]+\.[\w.-]+', ' <EMAIL> ', texte)
+    texte = re.sub(r'[$€£¥]\s?\d+', ' <MONEY> ', texte)
+    
+    # Nettoyage conservateur
+    texte = re.sub(r'[^a-zA-Z0-9!?\s<>]', '', texte)
     texte = re.sub(r'\s+', ' ', texte).strip()
     return texte
+
+def extraire_indices_semantiques_email(texte_brut):
+    """
+    Extrait un vecteur de metriques explicites issues du contenu textuel de l'email (Priorite 2).
+    """
+    indices = {}
+    texte_normal = str(texte_brut)
+    texte_nettoye = nettoyer_texte_email(texte_normal)
+    
+    # Comptages explicites des signaux cyber
+    indices['num_urls'] = texte_nettoye.count('<URL>')
+    indices['num_emails'] = texte_nettoye.count('<EMAIL>')
+    indices['num_exclamations'] = texte_nettoye.count('!')
+    indices['num_questions'] = texte_nettoye.count('?')
+    
+    mots = texte_normal.split()
+    mots_maj = [m for m in mots if m.isupper() and len(m) > 1]
+    indices['num_uppercase_words'] = len(mots_maj)
+    indices['uppercase_ratio'] = round(len(mots_maj) / (len(mots) + 1), 4)
+    
+    motifs_urgence = r'urgent|immediately|suspended|verify|click here|action required|final warning'
+    matches_urgence = re.findall(motifs_urgence, texte_normal.lower())
+    indices['num_urgency_matches'] = len(matches_urgence)
+    indices['has_urgency_phrase'] = 1 if len(matches_urgence) > 0 else 0
+    
+    indices['has_money_amount'] = 1 if '<MONEY>' in texte_nettoye else 0
+    indices['has_attachment_mention'] = 1 if re.search(r'attachment|pj|piece jointe|invoice', texte_normal.lower()) else 0
+    
+    return indices

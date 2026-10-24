@@ -1,47 +1,45 @@
 import os
+import pandas as pd
 from sklearn.model_selection import train_test_split
-import xgboost as xgb
 from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
 
-def preparer_et_decouper_donnees(df, colonne_texte, colonne_cible):
+def preparer_et_decouper_donnees(df, colonne_texte, colonne_cible, test_size=0.2, random_state=42):
     """
-    Supprime les doublons et separe le dataset en Train (80%) et Test (20%) de maniere stratifiee.
+    Nettoie les doublons bruts et partitionne le dataset de maniere stratifiee.
     """
-    df_nettoye = df.drop_duplicates(subset=[colonne_texte]).copy()
+    df_propre = df.drop_duplicates(subset=[colonne_texte]).copy()
     
-    X = df_nettoye[[colonne_texte]]
-    y = df_nettoye[colonne_cible]
+    X = df_propre[[colonne_texte]]
+    y = df_propre[colonne_cible]
     
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.20, random_state=42, stratify=y
+        X, y, test_size=test_size, stratify=y, random_state=random_state
     )
-    
     return X_train, X_test, y_train, y_test
 
-def sauvegarder_fichiers_processed(X_train, X_test, y_train, y_test, prefixe_nom):
+def sauvegarder_fichiers_processed(X_train, X_test, y_train, y_test, prefixe, dossier="data/processed"):
     """
-    Sauvegarde physiquement les splits Train/Test en fichiers CSV dans data/processed/.
+    Enregistre physiquement les splits sur le disque pour archivage et audit.
     """
-    dossier_cible = "data/processed"
-    os.makedirs(dossier_cible, exist_ok=True)
+    os.makedirs(dossier, exist_ok=True)
     
-    # Association du texte et de sa cible pour l'historique
-    df_train = X_train.copy()
-    df_train['label'] = y_train
+    train_df = X_train.copy()
+    train_df['target'] = y_train
     
-    df_test = X_test.copy()
-    df_test['label'] = y_test
+    test_df = X_test.copy()
+    test_df['target'] = y_test
     
-    df_train.to_csv(os.path.join(dossier_cible, f"{prefixe_nom}_train.csv"), index=False)
-    df_test.to_csv(os.path.join(dossier_cible, f"{prefixe_nom}_test.csv"), index=False)
-    print(f"Fichiers processed sauvegardes pour : {prefixe_nom}")
+    train_df.to_csv(os.path.join(dossier, f"{prefixe}_train.csv"), index=False)
+    test_df.to_csv(os.path.join(dossier, f"{prefixe}_test.csv"), index=False)
+    print(f"Fichiers processed sauvegardes pour : {prefixe}")
 
-def entrainer_modele_xgb(X_train, y_train):
-    modele = xgb.XGBClassifier(random_state=42, eval_metric='logloss')
-    modele.fit(X_train, y_train)
-    return modele
+def entrainer_modele_rf(X_train, y_train, random_state=42):
+    model = RandomForestClassifier(n_estimators=100, random_state=random_state, n_jobs=-1)
+    model.fit(X_train, y_train)
+    return model
 
-def entrainer_modele_rf(X_train, y_train):
-    modele = RandomForestClassifier(random_state=42, n_jobs=-1)
-    modele.fit(X_train, y_train)
-    return modele
+def entrainer_modele_xgb(X_train, y_train, random_state=42):
+    model = XGBClassifier(n_estimators=100, random_state=random_state, eval_metric='logloss', n_jobs=-1)
+    model.fit(X_train, y_train)
+    return model
