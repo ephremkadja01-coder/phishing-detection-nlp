@@ -1,5 +1,12 @@
 # Multi-Vector Phishing Detection
 
+[![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-1.5.0-orange?logo=scikitlearn&logoColor=white)](https://scikit-learn.org/)
+[![XGBoost](https://img.shields.io/badge/XGBoost-2.0.3-green)](https://xgboost.readthedocs.io/)
+[![Gradio](https://img.shields.io/badge/Gradio-4.44.1-orange)](https://www.gradio.app/)
+[![pytest](https://img.shields.io/badge/pytest-8.2.2-purple?logo=pytest&logoColor=white)](https://pytest.org/)
+[![Docker](https://img.shields.io/badge/Docker-supported-blue?logo=docker&logoColor=white)](https://www.docker.com/)
+
 A machine-learning prototype for classifying suspicious URLs and phishing emails. It includes URL feature engineering, an email TF-IDF pipeline, Random Forest and XGBoost training, asymmetric evaluation reports, a score-fusion helper, a command-line interface, and a Gradio web dashboard.
 
 > **Important:** This is an educational and experimental prototype, not a production security product. Predictions and probabilities can be wrong. The web allowlist is a manually maintained shortcut, not a domain verification service. Do not use this project as the only basis for blocking links, handling email, or making security decisions.
