@@ -7,9 +7,9 @@
 [![pytest](https://img.shields.io/badge/pytest-8.2.2-purple?logo=pytest&logoColor=white)](https://pytest.org/)
 [![Docker](https://img.shields.io/badge/Docker-supported-blue?logo=docker&logoColor=white)](https://www.docker.com/)
 
-A machine-learning prototype for classifying suspicious URLs and phishing emails. It includes URL feature engineering, an email TF-IDF pipeline, Random Forest and XGBoost training, asymmetric evaluation reports, a score-fusion helper, a command-line interface, and a Gradio web dashboard.
+A machine-learning prototype for classifying suspicious URLs and phishing emails. It includes an 18-feature URL extractor, a hybrid TF-IDF and explicit-feature email pipeline, isotonic-calibrated Random Forest and XGBoost models, asymmetric evaluation, governance reports, SHAP explanations, URL/email score fusion, a command-line interface, and a Gradio dashboard.
 
-> **Important:** This is an educational and experimental prototype, not a production security product. Predictions and probabilities can be wrong. The web allowlist is a manually maintained shortcut, not a domain verification service. Do not use this project as the only basis for blocking links, handling email, or making security decisions.
+> **Important:** This is an educational and experimental prototype, not a production security product. Predictions, explanations, and probabilities can be wrong. The project does not check live domain reputation, DNS, certificates, redirects, or page contents. Do not use it as the only basis for blocking links, handling email, or making security decisions.
 
 ## Business Context
 
@@ -18,7 +18,7 @@ Phishing can arrive through links or deceptive email content. This project explo
 - A structural model looks for patterns in a URL, such as its length, punctuation, entropy, and HTTPS usage.
 - A text model uses TF-IDF features from an email body to identify patterns associated with phishing.
 
-The two detection paths are trained independently. A helper can combine their scores using an asymmetric rule, but neither the CLI nor the current web dashboard invokes that helper: each interface analyzes a URL or an email separately. The project is intended for learning and experimentation; it does not query live domain-reputation services, inspect web page contents, or provide a complete email security workflow.
+The two detection paths are trained independently. The CLI and web dashboard can analyze a URL and an email separately or combine their scores with an asymmetric fusion rule. The project is intended for learning and experimentation; it does not query live domain-reputation services, inspect web page contents, or provide a complete email security workflow.
 
 ## Repository Structure
 
@@ -31,13 +31,17 @@ phishing-detection-nlp/
 ├── Dockerfile                   # Container image for the Gradio interface
 ├── Makefile                     # Install, train, test, serve, and clean shortcuts
 ├── src/
-│   ├── features.py              # URL feature extraction and email text cleaning
-│   ├── model.py                 # Data splitting, model training, and split saving
-│   ├── pipeline.py              # Inference and URL/email score-fusion helper
-│   └── evaluation.py            # Asymmetric evaluation metrics and Markdown report
+│   ├── features.py              # 18 URL features and hybrid email features
+│   ├── model.py                 # Isotonic-calibrated model training
+│   ├── pipeline.py              # Inference and URL/email score fusion
+│   ├── explain.py               # SHAP contribution calculations
+│   ├── evaluation.py            # Asymmetric metrics and threshold search
+│   ├── drift.py                 # KS-based prediction-distribution comparison
+│   └── fairness.py              # False-positive-rate subgroup comparison
 ├── tests/
-│   ├── test_unitaires_cyber.py  # URL features, cleaning, entropy, and fusion tests
+│   ├── test_unitaires_cyber.py  # URL features, text cleaning, and fusion tests
 │   └── test_model_loading.py    # Smoke check for saved model artifacts
+├── .github/workflows/ci.yml     # GitHub Actions dependency audit and test job
 ├── doc/                         # Business logic, threat model, evaluation, incident log
 ├── notebooks/                   # Data understanding, preparation, modeling, evaluation
 ├── data/
@@ -45,7 +49,8 @@ phishing-detection-nlp/
 │   ├── raw/                     # Local source datasets (not tracked by Git)
 │   └── processed/               # Locally generated train/test CSV files
 └── models/
-    └── metadata.json            # Environment, split, and URL feature metadata
+    ├── metadata.json            # Environment and model-threshold metadata
+    └── audit_gouvernance.json   # Latest training-run drift and fairness metrics
 ```
 
 The contents of `data/` and `models/*.joblib` are excluded from version control. The repository includes metadata, but a fresh clone does not include the datasets or trained models. Supply the required data and train the models before running inference or building the Docker image.
@@ -54,14 +59,15 @@ The contents of `data/` and `models/*.joblib` are excluded from version control.
 
 1. Load the URL and consolidated email CSVs from `data/raw/`.
 2. For URLs, map source labels to the project convention (`1` = phishing); for email, use the supplied labels as-is (`1` = phishing).
-3. Remove duplicate URL strings or cleaned email text, then create stratified 80/20 train/test splits with `random_state=42`.
-4. Extract 14 URL features or clean email text and fit a training-only TF-IDF vocabulary capped at 2,500 terms.
-5. Train a Random Forest and an XGBoost classifier for each detection path.
-6. Calculate PR-AUC, confusion-matrix counts, asymmetric cost (FN weighted 10x FP), and high-confidence error counts; export the report to `doc/EVALUATION.md`.
-7. Save the split CSVs under `data/processed/` and the trained artifacts under `models/`.
-8. Load the XGBoost artifacts in the CLI or web interface to classify new inputs.
+3. Split each dataset by row order into an 80/20 training/test partition. This is only a temporal split if the input rows are already ordered by time; the code does not read or sort by a timestamp column.
+4. Extract 18 URL features. For email, clean text, fit a training-only TF-IDF vocabulary capped at 2,500 terms, and append 10 explicit structural and urgency features.
+5. Train Random Forest and XGBoost classifiers for each path, with isotonic probability calibration using five-fold cross-validation.
+6. Search candidate thresholds to minimize a cost that weights false negatives 10 times more than false positives, then export evaluation metrics to `doc/EVALUATION.md`.
+7. For email holdout predictions, compare two halves of the score distribution with a KS test and compare false-positive rates for messages with and without detected urgency phrases. Save these results to `models/audit_gouvernance.json`.
+8. Save the trained artifacts under `models/`, along with environment and threshold metadata.
+9. Load the XGBoost artifacts in the CLI or web interface. The interfaces can analyze either input independently or fuse URL and email scores.
 
-The training script processes both datasets in sequence and requires both source files, even if you only plan to use one of the interfaces. Training rewrites the evaluation report and locally generated split/model files.
+The training script processes both datasets in sequence and requires both source files, even if you only plan to use one of the interfaces. Training rewrites the evaluation report, governance audit, metadata, and local model artifacts.
 
 ## Data and Label Requirements
 
@@ -82,35 +88,35 @@ The training script expects these columns and label conventions:
 | `data/raw/PhiUSIIL_Phishing_URL_Dataset.csv` | `URL`, `label` | Source `label=0` is mapped to phishing (`1`); all other values are mapped to legitimate (`0`). |
 | `data/raw/phishings_emails/phishing_email.csv` | `text_combined`, `label` | Must already be consolidated. Labels are used as-is: `1` means phishing and `0` legitimate. |
 
-The email script does not combine the other email corpus files in `data/raw/phishings_emails/`. Prepare the consolidated CSV with the required schema before training. Email text is normalized before duplicate removal and splitting; the TF-IDF vectorizer is fitted on the training split only. Incorrect or inconsistent labels will make the resulting evaluation and predictions unreliable. See [data/README.md](data/README.md) for the data governance notes; independently verify any supplied checksums against the dataset source before relying on them.
+The email script does not combine the other email corpus files in `data/raw/phishings_emails/`. Prepare the consolidated CSV with the required schema before training. Email text is normalized before the TF-IDF vectorizer is fitted on the training split only. The current training code does not remove duplicate records. Incorrect or inconsistent labels will make the resulting evaluation and predictions unreliable. See [data/README.md](data/README.md) for the data governance notes; independently verify any supplied checksums against the dataset source before relying on them.
 
 ## Feature Engineering
 
 ### URLs
 
-`src/features.py` extracts 14 numeric indicators from each URL:
+`src/features.py` extracts 18 numeric indicators from each URL:
 
-- URL length and counts of `.`, `-`, `@`, `?`, `=`, and `/`;
-- parsed hostname dot count as subdomain-depth proxy;
+- URL length and counts of `.`, `-`, `@`, `?`, `=`, and `/` (7 features);
+- parsed hostname dot count as a subdomain-depth proxy;
+- suspect-TLD and Punycode indicators;
+- a non-standard-port indicator and minimum Levenshtein distance to a small set of trusted brand names;
 - digit-to-letter and selected-special-character ratios;
 - presence of selected social-engineering terms (`login`, `verify`, `secure`, `account`, `banking`, `update`, `signin`, `compte`);
 - Shannon entropy of the URL string;
 - an IPv4-shaped string check; and
 - whether the input starts with HTTPS.
 
-These features describe the URL string, not the actual safety, ownership, or reputation of a website. The IP check is a pattern match, not full address validation. They do not validate TLS certificates or resolve redirects/domains.
-
-The Gradio interface has a hard-coded exact-host allowlist that bypasses URL model inference for listed hosts. This behavior exists only in `interface_web.py`; the CLI does not use it. The list is limited and manually maintained. It does not verify ownership, safety, or certificates, and a whitelist match must not be treated as a security guarantee.
+These features describe the URL string, not the actual safety, ownership, or reputation of a website. The IP check is a pattern match, not full address validation. They do not validate TLS certificates or resolve redirects/domains. **Known implementation issue:** the current `has_port_non_standard` logic also sets the indicator for any hostname containing `xn--`, even when no explicit non-standard port is present. Treat that feature as experimental until the implementation and its test are corrected.
 
 ### Email text
 
-Email text is converted to lowercase, non-letter characters are removed, and repeated whitespace is normalized. A `TfidfVectorizer` with English stop-word removal and a maximum vocabulary size of 2,500 transforms the cleaned text before classification.
+The cleaner replaces URLs, email addresses, and currency amounts with markers, removes other unsupported punctuation while preserving `!` and `?`, and normalizes whitespace. The training pipeline combines a `TfidfVectorizer` representation (English stop-word removal, at most 2,500 terms) with 10 explicit features: URL and email counts, exclamation and question counts, uppercase-word count and ratio, urgency-match count and flag, money-amount presence, and attachment/invoice mention.
 
 ### Score fusion and dashboard explanations
 
-`src/pipeline.py` exposes `fusionner_vecteurs_menace`: if either input score is at least 80%, the result is flagged and uses the higher score; otherwise, it uses a 60% URL / 40% email weighted score and a 50% decision threshold. This helper is covered by unit tests but is not currently called from `app.py` or `interface_web.py`.
+`src/pipeline.py` exposes `fusionner_vecteurs_menace`, used by both the CLI and web dashboard: if either input score is at least 80%, the result is flagged and uses the higher score; otherwise, it uses a 60% URL / 40% email weighted score and a 50% decision threshold.
 
-The Gradio dashboard returns heuristic explanation text for flagged inputs. URL output lists up to three positive-valued features in model feature order; email output lists up to three matching words from a fixed vocabulary. These are not SHAP values, feature-importance rankings for the specific prediction, nor causal explanations.
+`src/explain.py` uses SHAP `TreeExplainer` with an XGBoost estimator inside the calibrated model to calculate signed feature contributions for the dashboard. SHAP values describe the selected underlying estimator, not the entire calibrated ensemble, and are not causal explanations. They should be treated as supporting signals rather than definitive reasons for a verdict.
 
 ## Models and Evaluation
 
@@ -119,7 +125,7 @@ For both URLs and emails, the training script fits:
 - `RandomForestClassifier`
 - `XGBClassifier`
 
-The target class `1` represents phishing at inference time. Evaluation uses the fixed 0.5 probability threshold for confusion-matrix and cost metrics; false negatives are assigned 10 times the cost of false positives by default. The report also includes PR-AUC and counts of false negatives below 10% phishing probability and false positives above 90%. These are metrics on the supplied, deduplicated random holdout split, not an independent benchmark or a guarantee of performance on new data. The report is regenerated by training and may reflect the data and model run used most recently.
+The target class `1` represents phishing at inference time. Isotonic calibration is applied to the classifiers. Training searches thresholds from 0.01 to 0.99 to minimize false-negative cost (10x false-positive cost by default) and records the selected thresholds in metadata; the current inference functions nevertheless classify individual URL/email scores at a fixed 50% threshold. The evaluation report includes PR-AUC, confusion-matrix counts, asymmetric cost, and high-confidence error counts. These metrics use the supplied holdout partition and are not an independent benchmark or a guarantee of performance on new data. The report is regenerated by training and reflects the most recent run.
 
 The split CSVs are written to:
 
@@ -224,7 +230,7 @@ This is an artifact-loading smoke check and requires the five generated artifact
 pytest tests/ -v
 ```
 
-The unit tests cover URL feature keys and edge cases, Shannon entropy, email cleaning, and score fusion. The model-loading check is a standalone script, not a pytest test.
+The current unit tests cover URL feature indicators, Levenshtein distance, email cleaning, and score fusion. The model-loading check is a standalone script, not a pytest test.
 
 ### 9. Run an inference interface
 
@@ -259,7 +265,7 @@ The image runs only the Gradio interface and exposes port `7860`. The current Do
 
 ## Reproducibility
 
-The train/test split uses `random_state=42` and stratifies on the target label. The model constructors also specify `random_state=42`. Reproducing identical results still depends on using the same input data and compatible dependency versions; the saved data and models are intentionally local and are not included in Git. `models/metadata.json` records the Python and key library versions, split settings, email vocabulary limit, URL feature names, and operational threshold notes.
+The model constructors specify `random_state=42`. The current training split is the first 80% versus final 20% of row order after `sort_index()`; it does not use `TimeSeriesSplit`, stratification, or an explicit timestamp. Reproducing identical results still depends on using the same input data and compatible dependency versions; the saved data and models are intentionally local and are not included in Git. `models/metadata.json` records Python and key library versions plus the thresholds found during training.
 
 The pinned dependencies are listed in `requirements.txt`. Joblib model artifacts are Python-library-version sensitive, so for a different machine or environment, the recommended workflow is to install the requirements and retrain locally rather than copy `.joblib` files between environments.
 
@@ -274,14 +280,23 @@ The pinned dependencies are listed in `requirements.txt`. Joblib model artifacts
 - **Gradio** for the browser-based interface
 - **Docker** for an optional containerized Gradio deployment
 - **pytest** for focused unit tests
+- **SHAP** for model contribution calculations
+- **SciPy** for the KS drift comparison
+- **GitHub Actions** for dependency-audit and test automation
 
 ## Operational Troubleshooting & Post-Mortem
 
-This project records historical development incidents and their resolutions in the auditable ledger [doc/incident_log.md](doc/incident_log.md). Key engineering interventions include:
+This project records historical development incidents and their resolutions in [doc/incident_log.md](doc/incident_log.md). Key engineering changes include:
 
 - **UCI target alignment:** Corrected the PhiUSIIL source-label mapping used by the training pipeline so that the project consistently uses `1` for phishing and `0` for legitimate. Verify the source dataset's label convention before training on a different version.
-- **URL feature collision and false positives:** Added Shannon entropy and URL path-delimiter features, and introduced an exact-host allowlist in the Gradio interface to bypass model inference for selected hosts. The allowlist is local to the web interface, manually maintained, and is not proof that a URL is safe.
+- **URL features and allowlist removal:** Added Shannon entropy, URL path-delimiter, Punycode, suspect-TLD, port, and brand-distance indicators. Removed the former hard-coded exact-host allowlist from the active interface so URL analysis is not bypassed based on that list.
 - **NumPy scalar handling:** Simplified the web interface to consume native scalar prediction and probability values returned by the shared inference functions, avoiding the earlier array-shape handling issue.
+- **Hybrid email features:** Added explicit email structure and urgency indicators alongside TF-IDF.
+- **Calibrated models and operating thresholds:** Wrapped Random Forest and XGBoost classifiers in isotonic calibration and added asymmetric threshold search to training evaluation.
+- **Cross-channel analysis and explanations:** Added URL/email score fusion to both interfaces and a SHAP-based contribution calculation module for dashboard output.
+- **Governance metrics and CI:** Added holdout prediction-distribution comparison, urgency-group false-positive comparison, a GitHub Actions test workflow, and a dependency-audit step. The current dependency-audit step is warning-only and does not fail the workflow on reported findings.
+- **Email indicator preservation:** Updated text cleaning to retain useful URL, email, currency, and punctuation markers instead of stripping all non-letter signals.
+- **Environment setup:** Split pinned dependencies onto separate lines and documented clean virtual-environment setup. Virtual environments should be recreated at their final path rather than moved or copied, since activation scripts contain absolute paths.
 
 ## Project documentation
 
@@ -290,20 +305,35 @@ This project records historical development incidents and their resolutions in t
 - [Evaluation report](doc/EVALUATION.md) (regenerated by training)
 - [Technical incident log](doc/incident_log.md)
 - [Data governance and checksum ledger](data/README.md)
+- [Governance audit output](models/audit_gouvernance.json) (generated locally by training; may not exist in a fresh clone)
 - [Exploratory and modeling notebooks](notebooks/)
 
 ## Limitations and Safety Notes
 
 - URL inference uses a small set of hand-engineered string features. It does not check domain age, DNS, certificates, redirects, page contents, or live reputation.
 - A legitimate URL may be classified as phishing, and a phishing URL may be classified as legitimate. Treat predictions as experimental signals, not a verdict.
-- The web allowlist is a local shortcut for exact hostnames, not proof that a URL or page is safe. The CLI does not apply the allowlist.
-- The score-fusion helper is not integrated into either user interface; URL and email checks remain separate workflows.
-- Dashboard explanation labels are simple heuristics and are not model attribution methods.
+- The current non-standard-port indicator also flags Punycode hostnames, so its output is not a reliable port-only signal.
+- The selected training thresholds are recorded for evaluation, but inference currently uses a fixed 50% per-channel classification threshold.
+- The governance report is a lightweight analysis of holdout scores and urgency-match groups; it is not ongoing production monitoring or a comprehensive fairness assessment.
+- SHAP contributions use an underlying XGBoost estimator and do not explain the full isotonic-calibrated ensemble or establish causality.
 - The email classifier uses TF-IDF and does not understand meaning in the way a contextual language model does.
-- Reported metrics are calculated on a random split from the supplied datasets. They may not represent performance on current, unseen traffic.
-- Duplicate removal is applied before splitting (on raw URLs and normalized email text). This does not rule out all forms of dataset leakage or overlap between related source records.
+- Reported metrics are calculated on a row-order holdout from the supplied datasets. The split is only temporal if rows are time-ordered, and metrics may not represent performance on current, unseen traffic.
+- The current training pipelines do not deduplicate records before splitting. Duplicate or related records across the split can therefore affect reported metrics.
 - The threat-model document describes risks and design assumptions; it is not a security certification or evidence that the listed mitigations have been independently validated.
 - Never use this prototype as the sole control for email filtering, URL blocking, or incident response.
+
+## Virtual Environment Troubleshooting
+
+Use Python 3.12, matching the project metadata and Docker image. Create the virtual environment in the repository after navigating to its root, and activate it in the same terminal:
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -c "import sys; print(sys.executable)"
+```
+
+The printed executable should be the repository's `.venv/bin/python`. If it points to Conda or another Python installation, open a fresh terminal, deactivate Conda, and activate the project's `.venv` again. Do not move or copy an existing virtual environment; recreate it in the new location because its scripts can retain the old absolute path.
 
 ## References
 
