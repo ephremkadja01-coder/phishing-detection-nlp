@@ -6,9 +6,9 @@
     "xgboost_version": "2.0.3"
   },
   "decision_thresholds_calibrated": {
-    "seuil_url_rf": 0.060000000000000005,
-    "seuil_url_xgb": 0.060000000000000005,
-    "seuil_email_rf": 0.03,
-    "seuil_email_xgb": 0.03
+    "seuil_url_rf": 0.12,
+    "seuil_url_xgb": 0.08,
+    "seuil_email_rf": 0.08,
+    "seuil_email_xgb": 0.22
   }
 }

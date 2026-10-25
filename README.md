@@ -106,7 +106,7 @@ The email script does not combine the other email corpus files in `data/raw/phis
 - an IPv4-shaped string check; and
 - whether the input starts with HTTPS.
 
-These features describe the URL string, not the actual safety, ownership, or reputation of a website. The IP check is a pattern match, not full address validation. They do not validate TLS certificates or resolve redirects/domains. **Known implementation issue:** the current `has_port_non_standard` logic also sets the indicator for any hostname containing `xn--`, even when no explicit non-standard port is present. Treat that feature as experimental until the implementation and its test are corrected.
+These features describe the URL string, not the actual safety, ownership, or reputation of a website. The IP check is a pattern match, not full address validation. They do not validate TLS certificates, verify whether a port is reachable, or resolve redirects/domains. `has_port_non_standard` is set only when the URL explicitly contains a port other than 80 or 443.
 
 ### Email text
 

@@ -29,3 +29,10 @@ Pour atténuer ces risques et garantir la robustesse opérationnelle, l'architec
 
 ## 4. Usage Interdit et Gouvernance
 *   Ce prototype ne doit en aucun cas être déployé comme l'unique point de contrôle d'une infrastructure corporate. Il doit impérativement être couplé à des analyses dynamiques de réputation DNS (WHOIS/ASN), des bacs à sable (sandboxing) et des vérifications de certificats TLS.
+
+## 6. Operational & Machine Learning Limitations
+
+### 6.1 SHAP Explainer Calibration Gap
+* **Risk/Gap:** The active dashboard leverages a SHAP `TreeExplainer` applied directly to the underlying raw XGBoost estimator. However, the final deployed probabilities are processed through an Isotonic calibration layer (`CalibratedClassifierCV`).
+* **Impact:** SHAP values outputted to the SOC metrics describe the relative feature influence on the uncalibrated raw predictions, not absolute probability shifts of the finalized physical metrics.
+* **Mitigation/Note:** SOC Analysts must interpret the signed SHAP parameters as behavioral directions (relative indicator weight) rather than causal absolute values matching the calibrated risk percentages.

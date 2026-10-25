@@ -1,14 +1,14 @@
 {
   "drift": {
-    "statistique_ks": 0.3211,
-    "p_value": 1e-323,
-    "drift_detecte": 1,
-    "statut": "\ud83d\udea8 DRIFT DETECTE : Planifier un r\u00e9entra\u00eenement imm\u00e9diat."
+    "statistique_ks": 0.0088,
+    "p_value": 0.9103403855957082,
+    "drift_detecte": 0,
+    "statut": "\u2705 STABLE : Les distributions de production sont conformes."
   },
   "fairness": {
-    "taux_fausses_alertes_groupe_privilegie": 0.4796,
-    "taux_fausses_alertes_groupe_protege": 0.4196,
-    "disparate_impact_ratio": 0.8749,
-    "equitable": 1
+    "taux_fausses_alertes_groupe_privilegie": 0.0486,
+    "taux_fausses_alertes_groupe_protege": 0.0386,
+    "disparate_impact_ratio": 0.7929,
+    "equitable": 0
   }
 }

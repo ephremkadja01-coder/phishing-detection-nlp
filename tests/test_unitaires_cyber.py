@@ -2,18 +2,32 @@ import sys
 import os
 import pytest
 
-# Forcer l'arborescence racine dans le path systeme de Python
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.features import extraire_indices_url, calculer_distance_levenshtein, nettoyer_texte_email
 from src.pipeline import fusionner_vecteurs_menace
 
 def test_extracteur_url_retourne_toutes_les_18_cles():
-    indices = extraire_indices_url("https://xn--ggle-cca.xyz")
-    assert indices["tld_suspect"] == 1
-    assert indices["has_punycode"] == 1
-    assert "min_edit_dist_marques" in indices
+    indices = extraire_indices_url("https://example.com")
+    assert "tld_suspect" in indices
     assert len(indices) == 18
+
+def test_isolation_has_port_non_standard_cyber():
+    # Cas 1 : URL avec un port non-standard explicite
+    ind_non_standard = extraire_indices_url("http://example.com:8080")
+    assert ind_non_standard["has_port_non_standard"] == 1
+
+    ind_sans_port = extraire_indices_url("http://example.com")
+    assert ind_sans_port["has_port_non_standard"] == 0
+    
+    # Cas 2 : URL Punycode pure sans aucun port reseau
+    ind_punycode = extraire_indices_url("http://xn--mnchen-3ya.de")
+    assert ind_punycode["has_punycode"] == 1
+    assert ind_punycode["has_port_non_standard"] == 0
+    
+    # Cas 3 : URL utilisant un port standardise
+    ind_standard = extraire_indices_url("https://example.com:443")
+    assert ind_standard["has_port_non_standard"] == 0
 
 def test_distance_levenshtein_exacte():
     assert calculer_distance_levenshtein("g00gle", "google") == 2

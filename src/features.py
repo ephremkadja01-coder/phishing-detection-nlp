@@ -16,7 +16,6 @@ def calculer_entropie_shannon(chaine):
     return entropie
 
 def calculer_distance_levenshtein(s1, s2):
-    """Calcul de distance pour reperer le typosquatting."""
     if len(s1) < len(s2):
         return calculer_distance_levenshtein(s2, s1)
     if len(s2) == 0:
@@ -35,17 +34,12 @@ def calculer_distance_levenshtein(s1, s2):
     return previous_row[-1]
 
 def extraire_indices_url(url_brute):
-    """
-    Extrait un vecteur etendu de 18 caracteristiques cyber d'une URL.
-    """
     indices = {}
     url_chaine = str(url_brute).lower().strip()
     
     longueur = len(url_chaine)
     indices['longueur_url'] = longueur
-    
-    nb_pts = url_chaine.count('.')
-    indices['nb_points'] = nb_pts
+    indices['nb_points'] = url_chaine.count('.')
     indices['nb_tirets'] = url_chaine.count('-')
     indices['nb_arobases'] = url_chaine.count('@')
     indices['nb_interrogations'] = url_chaine.count('?')
@@ -53,49 +47,48 @@ def extraire_indices_url(url_brute):
     indices['nb_slashs'] = url_chaine.count('/')
     
     try:
-        analyse_url = urlparse(url_chaine if url_chaine.startswith(('http://', 'https://')) else 'https://' + url_chaine)
-        domaine = analyse_url.hostname if analyse_url.hostname else analyse_url.netloc
-        indices['profondeur_sous_domaine'] = domaine.count('.')
+        if not url_chaine.startswith(('http://', 'https://')):
+            analyse_url = urlparse('https://' + url_chaine)
+        else:
+            analyse_url = urlparse(url_chaine)
+            
+        hote = analyse_url.hostname or analyse_url.netloc.split(':')[0]
         
-        tld = domaine.split('.')[-1] if '.' in domaine else ''
+        indices['profondeur_sous_domaine'] = hote.count('.')
+        tld = hote.split('.')[-1] if '.' in hote else ''
         tlds_suspects = {'tk', 'ml', 'ga', 'cf', 'gq', 'xyz', 'top', 'work', 'click', 'link', 'download', 'win', 'bid'}
         indices['tld_suspect'] = 1 if tld in tlds_suspects else 0
-        indices['has_punycode'] = 1 if "xn--" in domaine else 0
         
-        # Verification des ports web standards
-        ports_standards = [80, 443]
-        if "xn--" in domaine:
-            indices['has_port_non_standard'] = 1
-        elif analyse_url.port and (analyse_url.port not in ports_standards):
+        indices['has_punycode'] = 1 if "xn--" in hote else 0
+        
+        # [PRIORITÉ 3] Extraction pure du port natif d'urlparse (pas de collision avec xn--)
+        ports_standards = {80, 443}
+        port = analyse_url.port
+        if port is not None and port not in ports_standards:
             indices['has_port_non_standard'] = 1
         else:
             indices['has_port_non_standard'] = 0
-        
-        nom_base = domaine.split('.')[0]
-        distances = [calculer_distance_levenshtein(nom_base, marque) for marque in ['google', 'laposte', 'github', 'microsoft', 'paypal']]
+            
+        distances = [calculer_distance_levenshtein(hote, marque) for marque in ['google', 'laposte', 'github', 'microsoft', 'paypal']]
         indices['min_edit_dist_marques'] = int(min(distances)) if distances else 0
         
     except Exception:
-        indices['profondeur_sous_domaine'] = nb_pts
+        indices['profondeur_sous_domaine'] = url_chaine.count('.')
         indices['tld_suspect'] = 0
         indices['has_punycode'] = 0
         indices['has_port_non_standard'] = 0
         indices['min_edit_dist_marques'] = 0
-        domaine = url_chaine
+        hote = url_chaine
         
     nb_chiffres = sum(c.isdigit() for c in url_chaine)
     nb_lettres = sum(c.isalpha() for c in url_chaine)
     indices['ratio_chiffres_lettres'] = round(nb_chiffres / (nb_lettres + 1), 4)
-    
-    caracteres_speciaux = url_chaine.count('.') + url_chaine.count('-') + url_chaine.count('?') + url_chaine.count('=') + url_chaine.count('/')
-    indices['ratio_caracteres_speciaux'] = round(caracteres_speciaux / (longueur + 1), 4)
+    indices['ratio_caracteres_speciaux'] = round((url_chaine.count('.') + url_chaine.count('-') + url_chaine.count('/') + url_chaine.count('?')) / (longueur + 1), 4)
     
     mots_suspects = ['login', 'verify', 'secure', 'account', 'banking', 'update', 'signin', 'compte']
     indices['contient_mot_suspect'] = 1 if any(mot in url_chaine for mot in mots_suspects) else 0
     indices['entropie_url'] = round(calculer_entropie_shannon(url_chaine), 4)
-    
-    motif_ip = r'(?:\d{1,3}\.){3}\d{1,3}'
-    indices['contient_ip'] = 1 if re.search(motif_ip, domaine) else 0
+    indices['contient_ip'] = 1 if re.search(r'(?:\d{1,3}\.){3}\d{1,3}', hote) else 0
     indices['utilise_https'] = 1 if url_chaine.startswith('https') else 0
     
     return indices
@@ -128,7 +121,6 @@ def extraire_indices_semantiques_email(texte_brut):
     matches_urgence = re.findall(motifs_urgence, texte_normal.lower())
     indices['num_urgency_matches'] = len(matches_urgence)
     indices['has_urgency_phrase'] = 1 if len(matches_urgence) > 0 else 0
-    
     indices['has_money_amount'] = 1 if '<MONEY>' in texte_nettoye else 0
     indices['has_attachment_mention'] = 1 if re.search(r'attachment|pj|piece jointe|invoice', texte_normal.lower()) else 0
     
