@@ -1,0 +1,14 @@
+{
+  "drift": {
+    "statistique_ks": 0.3211,
+    "p_value": 1e-323,
+    "drift_detecte": 1,
+    "statut": "\ud83d\udea8 DRIFT DETECTE : Planifier un r\u00e9entra\u00eenement imm\u00e9diat."
+  },
+  "fairness": {
+    "taux_fausses_alertes_groupe_privilegie": 0.4796,
+    "taux_fausses_alertes_groupe_protege": 0.4196,
+    "disparate_impact_ratio": 0.8749,
+    "equitable": 1
+  }
+}
