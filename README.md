@@ -27,7 +27,7 @@ phishing-detection-nlp/
 ├── app.py                       # Command-line inference interface
 ├── interface_web.py             # Gradio web interface
 ├── train_and_save_models.py     # Data preparation, training, and model saving
-├── requirements.txt             # Python dependencies (not version-locked)
+├── requirements.txt             # Environment export with local paths; not portable
 ├── Dockerfile                   # Container image for the Gradio interface
 ├── Makefile                     # Install, train, test, serve, and clean shortcuts
 ├── src/
@@ -258,7 +258,7 @@ The image runs only the Gradio interface and exposes port `7860`. The current Do
 
 The model constructors and the stratified 80/20 train/test split specify `random_state=42`. The split is random, not temporal, and does not use an explicit timestamp. Reproducing identical results still depends on using the same input data and compatible dependency versions; the datasets and model artifacts are local and are not included in Git. `models/metadata.json` records the declared Python and key library versions plus the thresholds found during training.
 
-The dependencies are listed without version pins in `requirements.txt`. Joblib model artifacts are Python-library-version sensitive, so for a different machine or environment, the recommended workflow is to install the requirements and retrain locally rather than copy `.joblib` files between environments. The Python 3.12 badge reflects the versions configured in CI and the Docker base image, not a package lock.
+`requirements.txt` is an environment-specific export: it mixes version-pinned entries with unpinned dependencies and local `file:///...` package references. It is not a portable lockfile and does not guarantee cross-environment reproducibility; some local references may not exist on another machine. The Python 3.12 badge reflects the versions configured in CI and the Docker base image, not a package lock. Joblib model artifacts are Python-library-version sensitive, so retrain locally rather than copying `.joblib` files between environments.
 
 ## Technical Stack
 
@@ -285,7 +285,7 @@ This project records historical development incidents and their resolutions in [
 - **Model evaluation and inference:** Added isotonic calibration for Random Forest and XGBoost, asymmetric threshold search (false negatives weighted 10x false positives), and use of the selected XGBoost thresholds during URL/email inference, with a 0.50 fallback when metadata is unavailable.
 - **Multi-modal interface and explanations:** Added URL-only, email-only, and combined analysis to the CLI and Gradio dashboard, plus SHAP contribution output based on an underlying XGBoost estimator.
 - **Governance experiments:** Added a KS comparison between halves of email holdout scores and false-positive-rate comparisons for email urgency groups. These are offline training-time analyses, not live drift monitoring or a comprehensive fairness certification. The fairness helper currently lives under `experimental/`.
-- **CI and dependency hygiene:** Added a GitHub Actions job that installs `requirements.txt`, runs `pip-audit`, and runs pytest. The audit command is wrapped so findings produce a warning rather than failing the workflow; dependencies are not version-locked.
+- **CI and dependency hygiene:** Added a GitHub Actions job that installs `requirements.txt`, runs `pip-audit`, and runs pytest. The audit command is wrapped so findings produce a warning rather than failing the workflow. The current dependency file is an environment-specific export, not a portable lockfile.
 - **Operational fixes:** Resolved dataset schema, URL feature, tokenizer, NumPy scalar, module-path, and CI dependency-format issues documented in the incident log. Added the `tabulate` runtime dependency needed to export evaluation reports and corrected the fairness import after its move to `experimental/`.
 
 ## Project documentation
